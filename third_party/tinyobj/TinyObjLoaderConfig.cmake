@@ -12,7 +12,7 @@ FIND_FILE(header tiny_obj_loader.h PATHS ${TinyObjLoader_DIR})
 IF (NOT source OR NOT header)
     MESSAGE ( FATAL_ERROR "Unable to find tiny_obj_loader")
 ENDIF ()
-message("[TinyObjLoader]find TinyObjLoader success.")
+message(STATUS "find TinyObjLoader")
 
 add_library(TinyObjLoader STATIC ${TinyObjLoader_DIR}/tiny_obj_loader.cpp)
 target_include_directories(TinyGLTF PUBLIC ${TinyObjLoader_DIR})

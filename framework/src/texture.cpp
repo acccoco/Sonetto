@@ -1,66 +1,104 @@
-#include "../texture.hpp"
+#include "texture.hpp"
+
+#include <utility>
+#include "tools.hpp"
 
 
-void Texture::img_init(const std::string &file_path)
+Hiss::Texture::Texture(Hiss::Device& device, std::string tex_path, bool mipmap)
+    : _device(device),
+      _tex_path(std::move(tex_path)),
+      _mip_levels(mipmap)
 {
-    auto env = EnvSingleton::env();
+    image_create(mipmap);
+    _image_view = new Hiss::ImageView(*_image, vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
+    sampler_create();
+}
 
-    /* read data from texture file */
-    stbi_uc *data = nullptr;
-    {
-        int width, height, channels;
-        data = stbi_load(file_path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        if (!data)
-            throw std::runtime_error("failed to load texture.");
-        _width      = width;
-        _height     = height;
-        _channels   = channels;
-        _mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
-    }
+
+void Hiss::Texture::image_create(bool mipmap)
+{
+    /* read data from a file and transfer it into the stage_buffer */
+    Hiss::Stbi_8Bit_RAII tex_data(_tex_path, STBI_rgb_alpha);
+    _width    = tex_data.width();
+    _height   = tex_data.height();
+    _channels = tex_data.channels_in_file();
+
     vk::DeviceSize image_size = _width * _height * 4;
+    Hiss::Buffer   stage_buffer(_device, image_size, vk::BufferUsageFlagBits::eTransferSrc,
+                                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+    stage_buffer.memory_copy_in(tex_data.data(), static_cast<size_t>(image_size));
 
 
-    /* texture data -> stage buffer */
-    vk::Buffer stage_buffer;
-    vk::DeviceMemory stage_memory;
-    buffer_create(image_size, vk::BufferUsageFlagBits::eTransferSrc,
-                  vk::MemoryPropertyFlagBits::eHostVisible |
-                          vk::MemoryPropertyFlagBits::eHostCoherent,
-                  stage_buffer, stage_memory);
-    void *stage_data = env->device.mapMemory(stage_memory, 0, image_size, {});
-    std::memcpy(stage_data, data, static_cast<size_t>(image_size));
-    env->device.unmapMemory(stage_memory);
+    /* 计算 mipmap 的级别 */
+    if (!mipmap)
+        _mip_levels = 1;
+    else
+        _mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(_width, _height)))) + 1;
 
 
-    /* create an image and memory */
-    vk::ImageCreateInfo image_info = {
-            .imageType   = vk::ImageType::e2D,
-            .format      = vk::Format::eR8G8B8A8Srgb,    // 和图片文件保持一致
-            .extent      = vk::Extent3D{.width = _width, .height = _height, .depth = 1},
-            .mipLevels   = _mip_levels,
-            .arrayLayers = 1,
-            .samples     = vk::SampleCountFlagBits::e1,
-            .tiling      = vk::ImageTiling::eOptimal,
-            .usage       = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled |
-                     vk::ImageUsageFlagBits::eTransferSrc,
-            .sharingMode   = vk::SharingMode::eExclusive,
-            .initialLayout = vk::ImageLayout::eUndefined,
+    /* create a image and copy buffer to the image */
+    _image = new Hiss::Image(Hiss::Image::ImageCreateInfo{
+            .device     = _device,
+            .format     = vk::Format::eR8G8B8A8Srgb,
+            .extent     = {_width, _height},
+            .mip_levels = _mip_levels,
+            /* 要建立 mipmap，因此需要 transfer src */
+            .usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
+                   | vk::ImageUsageFlagBits::eSampled,
+            .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
+    });
+    _image->layout_tran(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+                        vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
+    _image->copy_buffer_to_image(stage_buffer.vkbuffer(), vk::ImageAspectFlagBits::eColor);
+
+
+    /* generate mipmap */
+    if (_mip_levels > 1)
+    {
+        if (!_image->mipmap_generate(vk::ImageAspectFlagBits::eColor))
+            _device.logger().warn("the format is not supported to be linear filtered");
+    }
+    else
+    {
+        _image->layout_tran(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                            vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
+    }
+}
+
+
+void Hiss::Texture::sampler_create()
+{
+    vk::SamplerCreateInfo sampler_info = {
+            .magFilter  = vk::Filter::eLinear,
+            .minFilter  = vk::Filter::eLinear,
+            .mipmapMode = vk::SamplerMipmapMode::eLinear,
+
+            .addressModeU = vk::SamplerAddressMode::eMirroredRepeat,
+            .addressModeV = vk::SamplerAddressMode::eMirroredRepeat,
+            .addressModeW = vk::SamplerAddressMode::eMirroredRepeat,
+
+            .mipLodBias = 0.f,
+
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy    = _device.gpu_get().properties().limits.maxSamplerAnisotropy,
+
+            // 在 PCF shadow map 中会用到
+            .compareEnable = VK_FALSE,
+            .compareOp     = vk::CompareOp::eAlways,
+
+            .minLod = 0.f,
+            .maxLod = static_cast<float>(_mip_levels),
+
+            .borderColor             = vk::BorderColor::eIntOpaqueBlack,
+            .unnormalizedCoordinates = VK_FALSE,
     };
-    img_create(image_info, vk::MemoryPropertyFlagBits::eDeviceLocal, _img, _img_mem);
+    _sampler = _device.vkdevice().createSampler(sampler_info);
+}
 
 
-    /* stage buffer -> image */
-    img_layout_trans(_img, vk::Format::eR8G8B8A8Srgb, vk::ImageLayout::eUndefined,
-                     vk::ImageLayout::eTransferDstOptimal, _mip_levels);
-    // 向 mipmap 的 level 0 写入
-    buffer_image_copy(stage_buffer, _img, _width, _height);
-    // 基于 level 0 创建其他的 level
-    mipmap_generate(_img, vk::Format::eR8G8B8A8Srgb, static_cast<int32_t>(_width),
-                    static_cast<int32_t>(_height), _mip_levels);
-
-
-    // free resource
-    stbi_image_free(data);
-    env->device.destroyBuffer(stage_buffer);
-    env->device.freeMemory(stage_memory);
+Hiss::Texture::~Texture()
+{
+    _device.vkdevice().destroy(_sampler);
+    DELETE(_image_view);
+    DELETE(_image);
 }

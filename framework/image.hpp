@@ -1,22 +1,97 @@
 #pragma once
 #include "buffer.hpp"
+#include "device.hpp"
 
 
-/**
- * 创建 image 和对应的 memory，并将两者绑定
- */
-void img_create(const vk::ImageCreateInfo &image_info, const vk::MemoryPropertyFlags &mem_prop,
-                vk::Image &image, vk::DeviceMemory &memory);
+namespace Hiss
+{
 
-void img_layout_trans(vk::Image &image, const vk::Format &format, const vk::ImageLayout &old_layout,
-                      const vk::ImageLayout &new_layout, uint32_t mip_levels);
 
-void buffer_image_copy(vk::Buffer &buffer, vk::Image &image, uint32_t width, uint32_t height);
+class Image
+{
+public:
+    struct ImageCreateInfo
+    {
+        Device&                 device;
+        vk::Format              format            = {};
+        vk::Extent2D            extent            = {};
+        uint32_t                mip_levels        = 1;
+        std::vector<uint32_t>   sharing_queues    = {};
+        vk::ImageUsageFlags     usage             = {};
+        vk::MemoryPropertyFlags memory_properties = {};
+        vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
+        vk::SampleCountFlagBits samples           = vk::SampleCountFlagBits::e1;
+    };
 
-vk::ImageView img_view_create(const vk::Image &tex_img, const vk::Format &format,
-                              const vk::ImageAspectFlags &aspect_flags, uint32_t mip_levels);
+    explicit Image(ImageCreateInfo&& create_info);
+    Image(Image&)  = delete;
+    Image(Image&&) = delete;
+    ~Image();
 
-vk::Sampler sampler_create(std::optional<uint32_t> mip_levels);
+    [[nodiscard]] const Device&           device_get() const { return _device; }
+    [[nodiscard]] vk::Format              format_get() const { return _format; }
+    [[nodiscard]] vk::SampleCountFlagBits samples_get() const { return _samples; }
+    [[nodiscard]] vk::Image               vkimage() const { return _image; }
+    [[nodiscard]] uint32_t                mip_levels() const { return _mip_levels; }
 
-void mipmap_generate(vk::Image &image, const vk::Format &format, int32_t width, int32_t height,
-                     uint32_t mip_levels);
+    /**
+     * 默认 old layout = undefined，使用 graphics queue 进行转换
+     */
+    void layout_tran(vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::ImageAspectFlags image_aspect,
+                     uint32_t base_mip_level, uint32_t mip_level_count);
+
+    /**
+     * 将 buffer 数据传入 image 的 level#0，会将 image level#0 变为 TransferDst layout，使用 graphics queue 进行转换
+     */
+    void copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags aspect);
+
+
+    /**
+     * 注：
+     *  - 确保所有 level 都是 transfer_dst layout
+     *  - 使用 graphics queue 进行创建
+     *  - 会将 layout 转换为 readonly
+     * @return 如果 format 不支持 linear filter，则无法创建 mipmap
+     */
+    bool mipmap_generate(vk::ImageAspectFlags aspect);
+
+
+private:
+    Image(Device& device, vk::Format format, const vk::Extent2D& extent, uint32_t mip_levels,
+          const std::vector<uint32_t>& sharing_queues, vk::ImageUsageFlags usage,
+          vk::MemoryPropertyFlags memory_properties, vk::ImageTiling tiling, vk::SampleCountFlagBits samples);
+
+    // members =======================================================
+
+private:
+    Device&                 _device;
+    vk::Image               _image      = {};
+    vk::DeviceMemory        _memory     = {};
+    vk::Extent2D            _extent     = {};
+    vk::Format              _format     = {};
+    uint32_t                _mip_levels = {};
+    vk::ImageTiling         _tiling     = {};
+    vk::ImageUsageFlags     _usage      = {};
+    vk::SampleCountFlagBits _samples    = {};
+};
+
+
+class ImageView
+{
+public:
+    ImageView(const Image& image, vk::ImageAspectFlags image_aspect, uint32_t base_mip_level, uint32_t n_mip_level);
+    ImageView(ImageView&)        = delete;
+    ImageView(ImageView&& other) = delete;
+    ~ImageView();
+
+    [[nodiscard]] vk::ImageView                    view_get() const { return _image_view; }
+    [[nodiscard]] const vk::ImageSubresourceRange& subresource_range() const { return _subresource; }
+
+
+private:
+    const Device&             _device;
+    vk::ImageView             _image_view  = VK_NULL_HANDLE;
+    vk::Format                _format      = {};
+    vk::ImageSubresourceRange _subresource = {};
+};
+}    // namespace Hiss

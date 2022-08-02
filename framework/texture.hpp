@@ -3,43 +3,41 @@
 #include "image.hpp"
 
 
+namespace Hiss
+{
 class Texture
 {
-    vk::Image _img;
-    vk::DeviceMemory _img_mem;
-    vk::ImageView _img_view;
-    vk::Sampler _sampler;
-
-    uint32_t _width{};
-    uint32_t _height{};
-    uint32_t _channels{};
-    uint32_t _mip_levels{};
-
-
-    void img_init(const std::string &file_path);
 
 public:
-    static Texture load(const std::string &file_path, const vk::Format &format,
-                        const vk::ImageAspectFlags &aspect)
-    {
-        Texture tex;
-        tex.img_init(file_path);
-        tex._img_view = img_view_create(tex._img, format, aspect, tex._mip_levels);
-        tex._sampler  = sampler_create(tex._mip_levels);
+    /**
+     * 会将所有 level 都设为 readonly layout
+     */
+    Texture(Device& device, std::string  tex_path, bool mipmap);
+    ~Texture();
 
-        return tex;
-    }
-
-    vk::ImageView &img_view() { return _img_view; }
-    vk::Sampler &sampler() { return _sampler; }
+    [[nodiscard]] vk::Sampler   sampler() const { return _sampler; }
+    [[nodiscard]] vk::Image     image() const { return _image->vkimage(); }
+    [[nodiscard]] vk::ImageView image_view() const { return _image_view->view_get(); }
 
 
-    void free()
-    {
-        auto env = EnvSingleton::env();
-        env->device.destroy(_img_view);
-        env->device.destroy(_img);
-        env->device.destroy(_sampler);
-        env->device.free(_img_mem);
-    }
+private:
+    void image_create(bool mipmap);
+    void sampler_create();
+
+    // members =======================================================
+
+private:
+    Device&           _device;
+    const std::string _tex_path;
+    Image*            _image      = nullptr;
+    ImageView*        _image_view = nullptr;
+    vk::Sampler       _sampler    = VK_NULL_HANDLE;
+
+
+    uint32_t _width      = {};
+    uint32_t _height     = {};
+    uint32_t _channels   = {};    // The actual number of components for the image
+    uint32_t _mip_levels = {};
 };
+
+}    // namespace Hiss

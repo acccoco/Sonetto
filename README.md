@@ -6,7 +6,7 @@ This is my real-time renderer, which I use to learn Rulkan and real-time renderi
 window resize 后发生的事情：
 * 重新创建 surface，获得 surface 的 extent
 * 创建 swapchain，因为要根据 surface 的尺寸修改 image 的尺寸
-* 重新创建 pipeline，因为需要修改 viewport 尺寸
+* 重新创建 pipeline，因为需要修改 _viewport 尺寸
 * 重新创建 framebuffer
 
 

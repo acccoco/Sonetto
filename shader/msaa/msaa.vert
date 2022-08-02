@@ -8,8 +8,6 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 
 layout(binding = 0) uniform UniformBufferObject {
-    vec3 foo;
-    vec3 foo2;
     mat4 model;
     mat4 view;
     mat4 proj;

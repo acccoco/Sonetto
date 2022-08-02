@@ -1,51 +1,56 @@
-#include "../buffer.hpp"
+#include "buffer.hpp"
+#include <cstring>
 
 
-void buffer_create(vk::DeviceSize size, vk::BufferUsageFlags buffer_usage,
-              vk::MemoryPropertyFlags memory_properties, vk::Buffer &buffer,
-              vk::DeviceMemory &buffer_memory)
+/**
+ * buffer 的 sharing mode 是 Exclusive
+ */
+Hiss::Buffer::Buffer(Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
+                     vk::MemoryPropertyFlags memory_properties)
+    : _device(device),
+      _buffer_size(size)
 {
-    auto env = *EnvSingleton::env();
-
-    // 创建 buffer
-    buffer = env.device.createBuffer({
+    _buffer = device.vkdevice().createBuffer(vk::BufferCreateInfo{
             .size        = size,
-            .usage       = buffer_usage,
+            .usage       = usage,
             .sharingMode = vk::SharingMode::eExclusive,
     });
 
-
-    // 分配 memory
-    vk::MemoryRequirements mem_require = env.device.getBufferMemoryRequirements(buffer);
-
-    buffer_memory = EnvSingleton::mem_allocate(mem_require, memory_properties);
-
-
-    // 绑定
-    env.device.bindBufferMemory(buffer, buffer_memory, 0);
+    vk::MemoryRequirements memory_require = _device.vkdevice().getBufferMemoryRequirements(_buffer);
+    _memory                               = _device.memory_allocate(memory_require, memory_properties);
+    _device.vkdevice().bindBufferMemory(_buffer, _memory, 0);
 }
 
 
-vk::DescriptorPool
-create_descriptor_pool(uint32_t frames_in_flight)
+Hiss::Buffer::~Buffer()
 {
-    LogStatic::logger()->info("create descriptor pool.");
+    this->memory_unmap();
+    _device.vkdevice().destroy(_buffer);
+    _device.vkdevice().free(_memory);
+}
 
-    std::vector<vk::DescriptorPoolSize> pool_size = {
-            vk::DescriptorPoolSize{
-                    .type            = vk::DescriptorType::eUniformBuffer,
-                    .descriptorCount = frames_in_flight,
-            },
-            vk::DescriptorPoolSize{
-                    .type            = vk::DescriptorType::eCombinedImageSampler,
-                    .descriptorCount = frames_in_flight,
-            }};
 
-    return EnvSingleton::env()->device.createDescriptorPool(vk::DescriptorPoolCreateInfo{
-            .maxSets = frames_in_flight,
+void* Hiss::Buffer::memory_map()
+{
+    if (!_map)
+    {
+        _data = _device.vkdevice().mapMemory(_memory, 0, _buffer_size, {});
+        _map  = true;
+    }
+    return _data;
+}
 
-            // pool 允许每个种类的 descriptor 各有多少个
-            .poolSizeCount = (uint32_t) pool_size.size(),
-            .pPoolSizes    = pool_size.data(),
-    });
+
+void Hiss::Buffer::memory_unmap()
+{
+    if (!_map)
+        return;
+    _device.vkdevice().unmapMemory(_memory);
+    _map = false;
+}
+
+
+void Hiss::Buffer::memory_copy_in(const void* data, size_t n)
+{
+    std::memcpy(this->memory_map(), data, n);
 }

@@ -5,8 +5,11 @@ build
 # macos
 .DS_Store
 
-# ide
+# clion
 .idea
+
+# vscode
+*.code-workspace
 
 # spir-v shader
 *.spv
