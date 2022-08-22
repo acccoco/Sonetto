@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <utility>
+#include <random>
 #include "vk_common.hpp"
 #include "window.hpp"
 
@@ -26,13 +27,19 @@ public:
 
 protected:
     virtual void prepare();
-    virtual void update() noexcept;
+    virtual void update(double delte_time) noexcept;
     virtual void resize();
     virtual void clean();
-    virtual void wait_idle() = 0;    // 等待 gpu 执行完现有任务
+    virtual void wait_idle()  = 0;    // 等待 gpu 执行完现有任务
+    virtual void next_frame() = 0;
 
 
     [[nodiscard]] std::string app_name_get() const { return _app_name; }
+
+    /**
+     * 标准正态分布
+     */
+    static float rand_norm();
 
 
 private:
@@ -49,6 +56,7 @@ protected:
     std::shared_ptr<spdlog::logger> _validation_logger;
     Hiss::Window*                   _window;
 
+    std::chrono::steady_clock::time_point _pre_tick;
 
 private:
     const std::string _app_name;

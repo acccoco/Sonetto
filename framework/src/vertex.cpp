@@ -46,7 +46,7 @@ Hiss::IndexBuffer::IndexBuffer(Hiss::Device& device, const std::vector<element_t
 
 
     /* stage buffer to vertex buffer */
-    OneTimeCommand command_buffer{device, device.graphics_command_pool()};
+    OneTimeCommand command_buffer{device, device.command_pool_graphics()};
     command_buffer().copyBuffer(stage_buffer.vkbuffer(), _buffer, {vk::BufferCopy{.size = _buffer_size}});
     command_buffer.exec();
 }

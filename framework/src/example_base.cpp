@@ -205,7 +205,10 @@ void Hiss::ExampleBase::prepare()
     _logger->info("[swapchain] image count: {}", _swapchain->images_count());
 
 
-    _render_context = new RenderContext(*_device, IN_FLIGHT_CNT);
+    for (auto& frame: _frames)
+    {
+        frame = new Frame(*_device);
+    }
     _logger->info("[render context] frames in-flight: {}", 2);
 
 
@@ -250,7 +253,10 @@ void Hiss::ExampleBase::clean()
     _framebuffers.clear();
     DELETE(_depth_image_view);
     DELETE(_depth_image);
-    DELETE(_render_context);
+    for (auto& frame: _frames)
+    {
+        DELETE(frame);
+    }
     _device->vkdevice().destroy(_simple_render_pass);
     DELETE(_swapchain);
     DELETE(_device);
@@ -263,9 +269,9 @@ void Hiss::ExampleBase::clean()
 }
 
 
-void Hiss::ExampleBase::update() noexcept
+void Hiss::ExampleBase::update(double delte_time) noexcept
 {
-    Application::update();
+    Application::update(0);
 }
 
 
@@ -295,4 +301,63 @@ vk::Bool32 Hiss::ExampleBase::debug_callback(VkDebugUtilsMessageSeverityFlagBits
     }
 
     return VK_FALSE;
+}
+
+
+void Hiss::ExampleBase::next_frame()
+{
+    _current_frame_index = (_current_frame_index + 1) % IN_FLIGHT_CNT;
+}
+
+
+Hiss::Frame& Hiss::ExampleBase::current_frame()
+{
+    return *_frames[_current_frame_index];
+}
+
+
+void Hiss::ExampleBase::frame_prepare()
+{
+    /* wait fence */
+    if (!current_frame().fence_get().empty())
+    {
+        (void) _device->vkdevice().waitForFences(current_frame().fence_get(), VK_TRUE, UINT64_MAX);
+        _device->fence_pool().revert(current_frame().fence_pop_all());
+    }
+
+
+    /* acquire iamge from swapchian */
+    Hiss::Recreate need_recreate;
+    std::tie(need_recreate, _swapchain_image_index) =
+            _swapchain->image_acquire(current_frame().semaphore_swapchain_acquire());
+    if (need_recreate == Hiss::Recreate::NEED)
+    {
+        resize();
+        return;
+    }
+}
+
+
+void Hiss::ExampleBase::frame_submit()
+{
+    vk::Fence      fence         = _device->fence_pool().get(true);
+    Hiss::Recreate need_recreate = _swapchain->image_submit(
+            _swapchain_image_index, current_frame().semaphore_render_complete(),
+            current_frame().semaphore_transfer_done(), fence, current_frame().command_buffer_present());
+    current_frame().fence_push(fence);
+    if (need_recreate == Hiss::Recreate::NEED)
+    {
+        resize();
+    }
+}
+
+
+std::array<vk::CommandBuffer, Hiss::ExampleBase::IN_FLIGHT_CNT> Hiss::ExampleBase::command_buffers_compute()
+{
+    std::array<vk::CommandBuffer, IN_FLIGHT_CNT> buffers;
+    for (uint32_t i = 0; i < IN_FLIGHT_CNT; ++i)
+    {
+        buffers[i] = _frames[i]->command_buffer_compute();
+    }
+    return buffers;
 }

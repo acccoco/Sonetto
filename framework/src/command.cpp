@@ -49,7 +49,7 @@ void Hiss::OneTimeCommand::exec()
 {
     assert(!_used);
 
-    vk::Fence fence = _device.fence_pool().get();
+    vk::Fence fence = _device.fence_pool().get(false);
 
     _command_buffer.end();
     _pool.queue_get().queue.submit({vk::SubmitInfo{

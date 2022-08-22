@@ -10,7 +10,14 @@ void Hiss::Application::run()
         glfwPollEvents();
         if (glfwGetKey(_window->handle_get(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(_window->handle_get(), true);
-        update();
+
+        /* delta time */
+        auto now      = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<double, std::chrono::seconds::period>(now - _pre_tick);
+        _pre_tick     = now;
+
+        update(duration.count());
+        next_frame();
         if (_window->has_resized())
         {
             resize();
@@ -41,6 +48,8 @@ void Hiss::Application::prepare()
 
     _window = new Window(_app_name, WINDOW_INIT_WIDTH, WINDOW_INIT_HEIGHT);
     _logger->info("[window] init extent: {}, {}", WINDOW_INIT_WIDTH, WINDOW_INIT_HEIGHT);
+
+    _pre_tick = std::chrono::high_resolution_clock::now();
 }
 
 
@@ -61,5 +70,15 @@ void Hiss::Application::clean()
 }
 
 
-void Hiss::Application::update() noexcept
+void Hiss::Application::update(double delte_time) noexcept
 {}
+
+
+float Hiss::Application::rand_norm()
+{
+    static std::random_device              rd;
+    static std::default_random_engine      engine(rd());
+    static std::normal_distribution<float> normal_dis(0.f, 1.f);
+
+    return normal_dis(engine);
+}

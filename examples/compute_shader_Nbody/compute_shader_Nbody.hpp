@@ -1,80 +1,82 @@
 #pragma once
-#include <application.hpp>
-#include "profile.hpp"
+#include <example_base.hpp>
+#include "proj_profile.hpp"
+#include "texture.hpp"
+#include "pipeline.hpp"
 
 
-class ExampleComputeShaderNBody : public Hiss::ExampleBase
+struct GraphcisUBO
 {
-    ExampleComputeShaderNBody()
-        : ExampleBase()
-    {} /* graphics pass resource */
-    struct Graphics
-    {
-        struct GraphcisUBO
-        {
-            glm::mat4 projection;
-            glm::mat4 view;
-            glm::vec2 screen_dim;
-        } ubo{};
+    alignas(16) glm::mat4 projection;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::vec2 screen_dim;
+    // FIXME 对齐可能出问题
+};
 
 
-        vk::Buffer              uniform_buffer;
-        vk::DescriptorSetLayout descriptor_set_layout;
-        vk::DescriptorSet       descriptor_set;
-        vk::PipelineLayout      pipeline_layout;
-        vk::Pipeline            pipeline;
-        vk::Semaphore           semaphore;    // 渲染完成的标记
-    } graphics;
+struct ComputeUBO
+{
+    float   delta_time;
+    int32_t particle_count;
+    // FIXME 对齐可能出问题
+};
 
 
-    /* compute pass resource */
-    struct Compute
-    {
-
-        struct ComputeUBO
-        {
-            float   delta_time;
-            int32_t particle_count;
-        } ubo{};
-
-
-        /* shader 中 specialization 的 constant 量，可以理解为 macro */
-        struct MovementSpecializationData
-        {
-            uint32_t    workgroup_size;
-            uint32_t    shared_data_size;
-            const float gravity = 0.002f;
-            const float power   = 0.75f;
-            const float soften  = 0.05f;
-        } movement_specialization_data;
+/* shader 中 specialization 的 constant 量，可以理解为 macro */
+struct MovementSpecializationData
+{
+    uint32_t    workgroup_size   = {};        // constant id 0
+    uint32_t    shared_data_size = {};        // constant id 1，shader 之间共享数据的大小
+    const float gravity          = 0.002f;    // constant id 2
+    const float power            = 0.75f;     // constant id 3
+    const float soften           = 0.05f;     // constant id 4
+};
 
 
-        /* 一些配置信息 */
-        uint32_t          num_particles{};
-        uint32_t          work_group_size;
-        uint32_t          work_group_cnt;
-        uint32_t          shared_data_size;    // 单位是 sizeof(glm::vec4)
-        const std::string shader_file_calculate = SHADER("compute_Nbody/calculate.comp");
-        const std::string shader_file_integrate = SHADER("compute_Nbody/integrate.comp");
+class ComputeShaderNBody : public Hiss::ExampleBase
+{
+public:
+    ComputeShaderNBody()
+        : ExampleBase("n_body")
+    {}
+    ~ComputeShaderNBody() override = default;
 
 
-        const std::array<vk::DescriptorSetLayoutBinding, 2> layout_bindinds = {{
-                {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
-                {1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eCompute},
-        }};
+    void prepare() override;
+    void resize() override;
+    void update(double delta_time) noexcept override;
+    void clean() override;
 
 
-        vk::CommandBuffer       command_buffer;
-        vk::Semaphore           semaphore;    // compute 过程完成的标记
-        vk::DescriptorSetLayout descriptor_set_layout;
-        vk::DescriptorSet       descriptor_set;
-        vk::PipelineLayout      pipeline_layout;        // 两个 pipeline 的 layout 相同
-        vk::Pipeline            pipeline_calculate;     // 计算质点受力，更新质点速度
-        vk::Pipeline            pipeline_intergrate;    // 更新质点的位置
-        vk::Buffer              uniform_buffer;
-    } compute;
+    void particles_prepare();
+    void descriptor_pool_prepare();
+    void storage_buffer_prepare();
 
 
+    void graphics_prepare();
+    void graphics_clean();
+    void graphics_load_assets();
+    void graphics_uniform_buffer_prepare();
+    void graphics_pipeline_prepare();
+    void graphics_descriptor_set_prepare();
+    void graphcis_command_record(vk::CommandBuffer command_buffer, vk::Framebuffer framebuffer,
+                                 vk::DescriptorSet descriptor_set, vk::Image color_image);
+    void graphics_uniform_update(Hiss::Buffer& buffer, float delta_time);
+
+
+    void compute_prepare();
+    void compute_clean();
+    void compute_uniform_buffer_prepare();
+    void compute_descriptor_prepare();
+    void compute_pipeline_prepare();
+    void compute_command_prepare(vk::CommandBuffer command_buffer, vk::DescriptorSet descriptor_set);
+    void compute_uniform_update(Hiss::Buffer& buffer, float delta_time);
+
+
+    // members =======================================================
+
+
+private:
     struct Particle
     {
         glm::vec4 pos;    // xyz: position, w: mass
@@ -82,19 +84,72 @@ class ExampleComputeShaderNBody : public Hiss::ExampleBase
     };
 
 
-    vk::DescriptorPool descriptor_pool;
-    vk::Buffer         storage_buffer;
+    const uint32_t        PARTICLES_PER_ATTRACTOR = 4 * 1024;
+    uint32_t              num_particles           = {};
+    std::vector<Particle> particles               = {};
+    vk::DescriptorPool    descriptor_pool         = VK_NULL_HANDLE;
+    Hiss::Buffer*         storage_buffer          = nullptr;
 
 
-public:
-    void prepare() override;
-    void descriptor_pool_set();
+    const std::array<vk::DescriptorSetLayoutBinding, 3> graphics_descriptor_bindings = {{
+            {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
+            {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
+            {2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex},
+    }};
 
-    void graphics_prepare();
-    // TODO 判断 storage buffer 是否是初次使用，否则需要 queue family transfer
 
-    void compute_prepare();
-    void compute_pipeline_create();
-    void compute_descriptor_create();
-    void compute_command_prepare();
+    /* graphics pass resource */
+    struct Graphics
+    {
+        std::vector<vk::DescriptorSet> descriptor_sets       = {};
+        Hiss::GraphicsPipelineState    pipeline_state        = {};
+        vk::DescriptorSetLayout        descriptor_set_layout = VK_NULL_HANDLE;
+        vk::PipelineLayout             pipeline_layout       = VK_NULL_HANDLE;
+        vk::Pipeline                   pipeline              = VK_NULL_HANDLE;
+        GraphcisUBO                    ubo                   = {};
+
+        std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers = {};
+        std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
+
+        const std::string vert_shader_path  = SHADER("compute_Nbody/particle.vert.spv");
+        const std::string frag_shader_path  = SHADER("compute_Nbody/particle.frag.spv");
+        const std::string tex_particle_path = TEXTURE("compute_Nbody/particle_rgba.png");
+        const std::string tex_gradient_path = TEXTURE("compute_Nbody/particle_gradient_rgba.png");
+        Hiss::Texture*    tex_particle      = nullptr;
+        Hiss::Texture*    tex_gradient      = nullptr;
+    } graphics;
+
+
+    const std::array<vk::DescriptorSetLayoutBinding, 2> compute_descriptor_bindings = {{
+            {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
+            {1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eCompute},
+    }};
+
+
+    /* compute pass resource */
+    struct Compute
+    {
+
+        /* 一些配置信息 */
+        uint32_t workgroup_size   = {};
+        uint32_t workgroup_num    = {};
+        uint32_t shared_data_size = {};    // 单位是 sizeof(glm::vec4)
+
+        const std::string shader_file_calculate = SHADER("compute_Nbody/calculate.comp.spv");
+        const std::string shader_file_integrate = SHADER("compute_Nbody/integrate.comp.spv");
+
+
+        std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
+        std::vector<vk::DescriptorSet>           descriptor_sets = {};    // 每一帧有一个
+
+        vk::DescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
+        vk::PipelineLayout      pipeline_layout       = VK_NULL_HANDLE;    // 两个 pipeline 的 layout 相同
+        vk::Pipeline            pipeline_calculate    = VK_NULL_HANDLE;    // 计算质点受力，更新质点速度
+        vk::Pipeline            pipeline_intergrate   = VK_NULL_HANDLE;    // 更新质点的位置
+
+        MovementSpecializationData               specialization_data = {};
+        std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers     = {};    // 每一帧都有一个
+        ComputeUBO                               ubo                 = {};
+
+    } compute;
 };

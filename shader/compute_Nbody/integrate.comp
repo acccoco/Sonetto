@@ -1,0 +1,33 @@
+#version 450
+
+
+struct Particle
+{
+    vec4 pos;
+    vec4 vel;
+};
+
+// Binding 0 : Position storage buffer
+layout(std140, binding = 0) buffer Pos
+{
+    Particle particles[];
+};
+
+layout (local_size_x_id = 0) in;
+
+layout (binding = 1) uniform UBO
+{
+    float deltaT;
+    int particleCount;
+} ubo;
+
+#define TIME_FACTOR 0.05
+
+void main()
+{
+    int index = int(gl_GlobalInvocationID);
+    vec4 position = particles[index].pos;
+    vec4 velocity = particles[index].vel;
+    position += ubo.deltaT * TIME_FACTOR * velocity;
+    particles[index].pos = position;
+}

@@ -20,9 +20,8 @@ Hiss::GPU::GPU(vk::PhysicalDevice physical_device, vk::SurfaceKHR surface)
 }
 
 
-std::optional<vk::Format> Hiss::GPU::format_filter(const std::vector<vk::Format>& candidates,
-                                                              vk::ImageTiling                tiling,
-                                                              vk::FormatFeatureFlags         features) const
+std::optional<vk::Format> Hiss::GPU::format_filter(const std::vector<vk::Format>& candidates, vk::ImageTiling tiling,
+                                                   vk::FormatFeatureFlags features) const
 {
     for (const vk::Format& format: candidates)
     {
@@ -82,7 +81,9 @@ std::optional<uint32_t> Hiss::GPU::compute_queue_index() const
 {
     if (_compute_queue_family_index.empty())
         return std::nullopt;
-    return _compute_queue_family_index[0];
+    if (_compute_queue_family_index.size() > 2)
+        return _compute_queue_family_index[1];
+    return _compute_queue_family_index.front();
 }
 
 

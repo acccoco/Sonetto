@@ -92,15 +92,15 @@ void HelloTriangle::command_record(vk::CommandBuffer command_buffer, uint32_t sw
             .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
             .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-            .srcQueueFamilyIndex = _device->graphics_queue().family_index,
-            .dstQueueFamilyIndex = _device->present_queue().family_index,
+            .srcQueueFamilyIndex = _device->queue_graphics().family_index,
+            .dstQueueFamilyIndex = _device->queue_present().family_index,
             .image               = _swapchain->vkimage(swapchain_image_index),
             .subresourceRange    = _swapchain->subresource_range(),
     };
-    if (!Hiss::Queue::is_same_queue_family(_device->present_queue(), _device->graphics_queue()))
+    if (!Hiss::Queue::is_same_queue_family(_device->queue_present(), _device->queue_graphics()))
     {
-        release_barrier.srcQueueFamilyIndex = _device->graphics_queue().family_index;
-        release_barrier.dstQueueFamilyIndex = _device->present_queue().family_index;
+        release_barrier.srcQueueFamilyIndex = _device->queue_graphics().family_index;
+        release_barrier.dstQueueFamilyIndex = _device->queue_present().family_index;
     }
 
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -111,62 +111,37 @@ void HelloTriangle::command_record(vk::CommandBuffer command_buffer, uint32_t sw
 }
 
 
-void HelloTriangle::draw()
+void HelloTriangle::update(double delte_time) noexcept
 {
-    /* 不要超出 in-flight 的最大帧数 */
-    (void) _device->vkdevice().waitForFences(
-            {_render_context->current_fence_render(), _render_context->current_fence_transfer()}, VK_TRUE, UINT64_MAX);
+    Hiss::ExampleBase::update(delte_time);
 
 
-    /* acquire image from swapchain */
-    Hiss::Recreate need_recreate;
-    uint32_t       swapchain_image_index;
-    std::tie(need_recreate, swapchain_image_index) =
-            _swapchain->image_acquire(_render_context->current_semaphore_acquire());
-    if (need_recreate == Hiss::Recreate::NEED)
-    {
-        resize();
-        return;
-    }
-
+    frame_prepare();
 
     /* draw */
-    _render_context->current_command_buffer_graphics().reset();
-    command_record(_render_context->current_command_buffer_graphics(), swapchain_image_index);
-    std::vector<vk::PipelineStageFlags> wait_stages = {vk::PipelineStageFlagBits::eEarlyFragmentTests};
-    _device->vkdevice().resetFences({_render_context->current_fence_render()});
-    _device->graphics_queue().queue.submit(
+    vk::CommandBuffer command_buffer = current_frame().command_buffer_graphics();
+    command_record(command_buffer, current_swapchain_image_index());
+
+    std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
+    std::array<vk::Semaphore, 1>          wait_semaphores   = {current_frame().semaphore_swapchain_acquire()};
+    std::array<vk::Semaphore, 1>          signal_semaphores = {current_frame().semaphore_render_complete()};
+
+    vk::Fence fence = _device->fence_pool().get(false);
+    _device->queue_graphics().queue.submit(
             {
-                    vk::SubmitInfo{.waitSemaphoreCount   = 1,
-                                   .pWaitSemaphores      = &_render_context->current_semaphore_acquire(),
+                    vk::SubmitInfo{.waitSemaphoreCount   = static_cast<uint32_t>(wait_semaphores.size()),
+                                   .pWaitSemaphores      = wait_semaphores.data(),
                                    .pWaitDstStageMask    = wait_stages.data(),
                                    .commandBufferCount   = 1,
-                                   .pCommandBuffers      = &_render_context->current_command_buffer_graphics(),
-                                   .signalSemaphoreCount = 1,
-                                   .pSignalSemaphores    = &_render_context->current_semaphore_render()},
+                                   .pCommandBuffers      = &command_buffer,
+                                   .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
+                                   .pSignalSemaphores    = signal_semaphores.data()},
             },
-            _render_context->current_fence_render());
+            fence);
+    current_frame().fence_push(fence);
 
 
-    /* present */
-    need_recreate = _swapchain->image_submit(swapchain_image_index, _render_context->current_semaphore_render(),
-                                             _render_context->current_semaphore_transfer(),
-                                             _render_context->current_fence_transfer(),
-                                             _render_context->current_command_buffer_present());
-    if (need_recreate == Hiss::Recreate::NEED)
-    {
-        resize();
-    }
-
-
-    _render_context->next_frame();
-}
-
-
-void HelloTriangle::update() noexcept
-{
-    Hiss::ExampleBase::update();
-    draw();
+    frame_submit();
 }
 
 

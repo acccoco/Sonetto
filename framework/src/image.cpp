@@ -95,7 +95,7 @@ void Hiss::Image::layout_tran(vk::ImageLayout old_layout, vk::ImageLayout new_la
                                  .layerCount     = 1},
     };
 
-    OneTimeCommand command_buffer{_device, _device.graphics_command_pool()};
+    OneTimeCommand command_buffer{_device, _device.command_pool_graphics()};
     command_buffer().pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
                                      {}, {}, {}, {barrier});
     command_buffer.exec();
@@ -119,7 +119,7 @@ void Hiss::Image::copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags a
     };
 
 
-    Hiss::OneTimeCommand command(_device, _device.graphics_command_pool());
+    Hiss::OneTimeCommand command(_device, _device.command_pool_graphics());
     command().copyBufferToImage(buffer, _image, vk::ImageLayout::eTransferDstOptimal, {copy_info});
     command.exec();
 }
@@ -146,7 +146,7 @@ bool Hiss::Image::mipmap_generate(vk::ImageAspectFlags aspect)
         return false;
 
 
-    Hiss::OneTimeCommand   command(_device, _device.graphics_command_pool());
+    Hiss::OneTimeCommand   command(_device, _device.command_pool_graphics());
     vk::ImageMemoryBarrier barrier = {
             .image            = _image,
             .subresourceRange = {.aspectMask = aspect, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};

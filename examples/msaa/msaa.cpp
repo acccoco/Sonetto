@@ -235,61 +235,38 @@ void MSAA::pipeline_prepare()
 }
 
 
-void MSAA::update() noexcept
+void MSAA::update(double delte_time) noexcept
 {
-    (void) _device->vkdevice().waitForFences(
-            {
-                    _render_context->current_fence_render(),
-                    _render_context->current_fence_transfer(),
-            },
-            VK_TRUE, UINT64_MAX);
-
-
-    /* acquire image from swapchain */
-    Hiss::Recreate need_recreate;
-    uint32_t       swapchain_image_index;
-    std::tie(need_recreate, swapchain_image_index) =
-            _swapchain->image_acquire(_render_context->current_semaphore_acquire());
-    if (need_recreate == Hiss::Recreate::NEED)
-    {
-        resize();
-        return;
-    }
+    Hiss::ExampleBase::update(delte_time);
+    frame_prepare();
 
 
     /* record command */
     uniform_update();
-    _render_context->current_command_buffer_graphics().reset();
-    this->command_record(_render_context->current_command_buffer_graphics(), swapchain_image_index);
+    vk::CommandBuffer command_buffer = current_frame().command_buffer_graphics();
+    this->command_record(command_buffer, current_swapchain_image_index());
 
 
     /* submit command */
-    vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-    _device->vkdevice().resetFences({_render_context->current_fence_render()});
-    _device->graphics_queue().queue.submit(
-            {
-                    vk::SubmitInfo{
-                            .waitSemaphoreCount   = 1,
-                            .pWaitSemaphores      = &_render_context->current_semaphore_acquire(),
-                            .pWaitDstStageMask    = &wait_stage,
-                            .commandBufferCount   = 1,
-                            .pCommandBuffers      = &_render_context->current_command_buffer_graphics(),
-                            .signalSemaphoreCount = 1,
-                            .pSignalSemaphores    = &_render_context->current_semaphore_render(),
-                    },
-            },
-            _render_context->current_fence_render());
+    vk::Fence                             fence             = _device->fence_pool().get(false);
+    std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
+    std::array<vk::Semaphore, 1>          wait_semaphores   = {current_frame().semaphore_swapchain_acquire()};
+    std::array<vk::Semaphore, 1>          signal_semaphores = {current_frame().semaphore_render_complete()};
+    _device->queue_graphics().queue.submit(
+            {vk::SubmitInfo{
+                    .waitSemaphoreCount   = static_cast<uint32_t>(wait_semaphores.size()),
+                    .pWaitSemaphores      = wait_semaphores.data(),
+                    .pWaitDstStageMask    = wait_stages.data(),
+                    .commandBufferCount   = 1,
+                    .pCommandBuffers      = &command_buffer,
+                    .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
+                    .pSignalSemaphores    = signal_semaphores.data(),
+            }},
+            fence);
+    current_frame().fence_push(fence);
 
 
-    /* present */
-    need_recreate = _swapchain->image_submit(swapchain_image_index, _render_context->current_semaphore_render(),
-                                             _render_context->current_semaphore_transfer(),
-                                             _render_context->current_fence_transfer(),
-                                             _render_context->current_command_buffer_present());
-    if (need_recreate == Hiss::Recreate::NEED)
-    {
-        resize();
-    }
+    frame_submit();
 }
 
 
@@ -487,7 +464,7 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
     command_buffer.bindIndexBuffer(_mesh->index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
     command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0,
-                                      {_descriptor_sets[_render_context->current_frame_index()]}, {});
+                                      {_descriptor_sets[current_frame_index()]}, {});
     viewport.width  = static_cast<float>(_swapchain->extent_get().width);
     viewport.height = static_cast<float>(_swapchain->extent_get().height);
     command_buffer.setViewport(0, {viewport});
@@ -497,13 +474,13 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
 
 
     /* resolve attachment: release and layout transition */
-    bool need_release = !Hiss::Queue::is_same_queue_family(_device->present_queue(), _device->graphics_queue());
+    bool need_release = !Hiss::Queue::is_same_queue_family(_device->queue_present(), _device->queue_graphics());
     vk::ImageMemoryBarrier release_barrier = {
             .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
             .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-            .srcQueueFamilyIndex = need_release ? _device->graphics_queue().family_index : VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = need_release ? _device->present_queue().family_index : VK_QUEUE_FAMILY_IGNORED,
+            .srcQueueFamilyIndex = need_release ? _device->queue_graphics().family_index : VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = need_release ? _device->queue_present().family_index : VK_QUEUE_FAMILY_IGNORED,
             .image               = _swapchain->vkimage(swapchain_image_index),
             .subresourceRange    = _swapchain->subresource_range(),
     };
@@ -517,8 +494,7 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
 
 void MSAA::uniform_update()
 {
-    assert(_render_context->current_frame_index() < IN_FLIGHT_CNT);
-    assert(_uniform_buffers[_render_context->current_frame_index()] != nullptr);
+    assert(_uniform_buffers[current_frame_index()] != nullptr);
 
 
     static auto start_time = std::chrono::high_resolution_clock::now();
@@ -536,5 +512,5 @@ void MSAA::uniform_update()
     /* glm 是为 OpenGL 设计的，Vulkan 的坐标系和 OpenGL 存在差异 */
     ubo.proj[1][1] *= -1.f;
 
-    _uniform_buffers[_render_context->current_frame_index()]->memory_copy_in(&ubo, sizeof(ubo));
+    _uniform_buffers[current_frame_index()]->memory_copy_in(&ubo, sizeof(ubo));
 }

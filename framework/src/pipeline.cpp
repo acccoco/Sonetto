@@ -102,3 +102,21 @@ void Hiss::GraphicsPipelineState::dynamic_state_add(vk::DynamicState state)
 {
     this->_dynamic_states.push_back(state);
 }
+
+
+void Hiss::GraphicsPipelineState::depth_set(vk::PipelineDepthStencilStateCreateInfo depth_state)
+{
+    this->_depth_stencil_state = depth_state;
+}
+
+
+void Hiss::GraphicsPipelineState::color_blend_attachment_set(vk::PipelineColorBlendAttachmentState blend_state)
+{
+    this->_color_blend_state = blend_state;
+}
+
+
+void Hiss::GraphicsPipelineState::input_assemly_set(vk::PrimitiveTopology topo)
+{
+    _assembly_state.topology = topo;
+}

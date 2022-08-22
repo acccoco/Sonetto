@@ -157,16 +157,12 @@ std::pair<Hiss::Recreate, uint32_t> Hiss::Swapchain::image_acquire(vk::Semaphore
 }
 
 
-/**
- * 告知 present queue，swapchain 上的指定 image 可以 present 了
- * @return 检测 window 大小是否发生变化，决定是否要 recreate swapchain
- */
 Hiss::Recreate Hiss::Swapchain::image_submit(uint32_t image_index, vk::Semaphore render_semaphore,
                                              vk::Semaphore trans_semaphore, vk::Fence transfer_fence,
                                              vk::CommandBuffer present_command_buffer) const
 {
     /* queue ownership transfer: acquire */
-    bool need_ownership_trans = !Queue::is_same_queue_family(_device.present_queue(), _device.graphics_queue());
+    bool need_ownership_trans = !Queue::is_same_queue_family(_device.queue_present(), _device.queue_graphics());
     if (need_ownership_trans)
     {
         present_command_buffer.reset();
@@ -177,8 +173,8 @@ Hiss::Recreate Hiss::Swapchain::image_submit(uint32_t image_index, vk::Semaphore
         vk::ImageMemoryBarrier acquire_barrier = {
                 .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
                 .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-                .srcQueueFamilyIndex = _device.graphics_queue().family_index,
-                .dstQueueFamilyIndex = _device.present_queue().family_index,
+                .srcQueueFamilyIndex = _device.queue_graphics().family_index,
+                .dstQueueFamilyIndex = _device.queue_present().family_index,
                 .image               = this->_images[image_index],
                 .subresourceRange    = {.aspectMask     = vk::ImageAspectFlagBits::eColor,
                                         .baseMipLevel   = 0,
@@ -192,7 +188,7 @@ Hiss::Recreate Hiss::Swapchain::image_submit(uint32_t image_index, vk::Semaphore
 
         vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTopOfPipe;
         _device.vkdevice().resetFences({transfer_fence});
-        _device.present_queue().queue.submit({vk::SubmitInfo{
+        _device.queue_present().queue.submit({vk::SubmitInfo{
                                                      .waitSemaphoreCount   = 1,
                                                      .pWaitSemaphores      = &render_semaphore,
                                                      .pWaitDstStageMask    = &wait_stage,
@@ -213,7 +209,7 @@ Hiss::Recreate Hiss::Swapchain::image_submit(uint32_t image_index, vk::Semaphore
             .pSwapchains        = &_swapchain,
             .pImageIndices      = &image_index,
     };
-    vk::Result result = _device.present_queue().queue.presentKHR(present_info);
+    vk::Result result = _device.queue_present().queue.presentKHR(present_info);
 
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR)
     {

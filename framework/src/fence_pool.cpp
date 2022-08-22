@@ -9,27 +9,36 @@ Hiss::FencePool::~FencePool()
 }
 
 
-/**
- * 初始状态: unsignaled
- */
-vk::Fence Hiss::FencePool::get()
+vk::Fence Hiss::FencePool::get(bool signaled)
 {
     if (_pool.empty())
     {
-        _pool.push_back(_device.vkdevice().createFence({}));
+        _pool.push_back(_device.vkdevice().createFence({.flags = vk::FenceCreateFlagBits::eSignaled}));
     }
+
     vk::Fence fence = _pool.back();
     _pool.pop_back();
+
+    if (!signaled)
+    {
+        _device.vkdevice().resetFences({fence});
+    }
     return fence;
 }
 
 
-/**
- * @param fence 确保 fence 状态: signaled
- */
 void Hiss::FencePool::revert(vk::Fence fence)
 {
     assert(vk::Result::eSuccess == _device.vkdevice().getFenceStatus(fence));
-    _device.vkdevice().resetFences({fence});
+    // _device.vkdevice().resetFences({fence});
     _pool.push_back(fence);
+}
+
+
+void Hiss::FencePool::revert(const std::vector<vk::Fence>& fences)
+{
+    for (auto& fence: fences)
+    {
+        revert(fence);
+    }
 }

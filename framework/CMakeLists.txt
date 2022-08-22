@@ -38,13 +38,12 @@ set(HEADER_FILES
         vertex.hpp
         vk_common.hpp
         instance.hpp
-        render_context.hpp
         window.hpp
         device.hpp
         physical_device.hpp
         example_base.hpp
         pipeline.hpp
-        command.hpp)
+        command.hpp frame.hpp)
 
 # source files
 set(SOURCE_FILES
@@ -61,10 +60,9 @@ set(SOURCE_FILES
         src/physical_device.cpp
         src/swapchain.cpp
         src/example_base.cpp
-        src/render_context.cpp
         src/pipeline.cpp
         src/command.cpp
-        src/fence_pool.cpp src/tools.cpp src/model.cpp)
+        src/fence_pool.cpp src/tools.cpp src/model.cpp src/frame.cpp)
 
 
 # static library

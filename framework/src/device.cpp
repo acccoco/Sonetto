@@ -61,38 +61,41 @@ void Hiss::Device::logical_device_create()
 
 
     /* 获取 queue */
-    _graphics_queue = {
+    _queue_graphics = {
             .queue        = _device.getQueue(graphics_queue_index.value(), 0),
             .family_index = graphics_queue_index.value(),
             .flag         = QueueFlag::Graphics,
     };
-    _present_queue = {
+    _queue_present = {
             .queue        = _device.getQueue(present_queue_index.value(), 0),
             .family_index = present_queue_index.value(),
             .flag         = QueueFlag::Present,
     };
-    _compute_queue = {
+    _queue_compute = {
             .queue        = _device.getQueue(compute_queue_index.value(), 0),
             .family_index = compute_queue_index.value(),
             .flag         = QueueFlag::Compute,
     };
+    _logger.info("[Device] queue graphics family index: {}", _queue_graphics.family_index);
+    _logger.info("[Device] queue present family index: {}", _queue_present.family_index);
+    _logger.info("[Device] queue compute family index: {}", _queue_compute.family_index);
 }
 
 
 void Hiss::Device::command_pool_create()
 {
-    _graphics_command_pool = new CommandPool(*this, _graphics_queue);
-    _present_command_pool  = new CommandPool(*this, _present_queue);
-    _compute_command_pool  = new CommandPool(*this, _compute_queue);
+    _command_pool_graphics = new CommandPool(*this, _queue_graphics);
+    _command_pool_present  = new CommandPool(*this, _queue_present);
+    _command_pool_compute  = new CommandPool(*this, _queue_compute);
 }
 
 
 Hiss::Device::~Device()
 {
     DELETE(_fence_pool);
-    DELETE(_graphics_command_pool);
-    DELETE(_present_command_pool);
-    DELETE(_compute_command_pool);
+    DELETE(_command_pool_graphics);
+    DELETE(_command_pool_present);
+    DELETE(_command_pool_compute);
     _device.destroy();
 }
 
@@ -119,4 +122,22 @@ vk::DeviceMemory Hiss::Device::memory_allocate(const vk::MemoryRequirements&  me
             .allocationSize  = mem_require.size,
             .memoryTypeIndex = mem_idx.value(),
     });
+}
+
+
+vk::Semaphore Hiss::Device::semaphore_create(bool signal)
+{
+    assert(_fence_pool);
+
+    vk::Semaphore semaphore = _device.createSemaphore({});
+    if (!signal)
+        return semaphore;
+
+    /* 提交一个空命令，并通知刚创建的 semaphore，这样来创建 signaled 状态的 semphore */
+    vk::Fence temp_fence = _fence_pool->get(false);
+    _queue_compute.queue.submit(vk::SubmitInfo{.signalSemaphoreCount = 1, .pSignalSemaphores = &semaphore}, temp_fence);
+    if (vk::Result::eSuccess != _device.waitForFences({temp_fence}, VK_TRUE, UINT64_MAX))
+        throw std::runtime_error("error on create semaphore.");
+    _fence_pool->revert(temp_fence);
+    return semaphore;
 }

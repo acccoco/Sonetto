@@ -11,6 +11,13 @@ public:
            vk::MemoryPropertyFlags memory_properties);
     virtual ~Buffer();
 
+    /**
+     * 通过 stage buffer 这个中间过程来创建 buffer
+     */
+    static Hiss::Buffer* buffer_create_stage(Hiss::Device& device, Hiss::CommandPool& command_pool, vk::DeviceSize size,
+                                             vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memory_properties,
+                                             void* data);
+
     [[nodiscard]] vk::Buffer     vkbuffer() const { return _buffer; }
     [[nodiscard]] vk::DeviceSize buffer_size() const { return _buffer_size; }
 

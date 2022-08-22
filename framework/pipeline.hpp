@@ -18,10 +18,13 @@ public:
     void vertex_input_attribute_set(const std::vector<vk::VertexInputAttributeDescription>& attributes);
     template<size_t N>
     void vertex_input_attribute_set(const std::array<vk::VertexInputAttributeDescription, N>& attributes);
+    void input_assemly_set(vk::PrimitiveTopology topo);
     void viewport_set(const vk::Extent2D& extent);
     void msaa_set(vk::SampleCountFlagBits samples);
+    void depth_set(vk::PipelineDepthStencilStateCreateInfo depth_state);
     void dynamic_state_add(vk::DynamicState state);
     void pipeline_layout_set(vk::PipelineLayout layout);
+    void color_blend_attachment_set(vk::PipelineColorBlendAttachmentState blend_state);
 
 
 private:
@@ -94,8 +97,10 @@ private:
     };
 
     vk::PipelineColorBlendStateCreateInfo _blend_state = {
+            /* logic operation 似乎是独立于 blend 的，如果启用了 logic，就不再使用 blend 了 */
             .logicOpEnable = VK_FALSE,
             .logicOp       = vk::LogicOp::eCopy,
+
             /* 需要为每个 color attachment 指定 blend state */
             .attachmentCount = 1,
             .pAttachments    = &_color_blend_state,

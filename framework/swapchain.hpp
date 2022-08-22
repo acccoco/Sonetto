@@ -29,9 +29,15 @@ public:
     void resize();
 
     std::pair<Hiss::Recreate, uint32_t> image_acquire(vk::Semaphore to_signal);
-    [[nodiscard]] Hiss::Recreate        image_submit(uint32_t image_index, vk::Semaphore render_semaphore,
-                                                     vk::Semaphore trans_semaphore, vk::Fence transfer_fence,
-                                                     vk::CommandBuffer present_command_buffer) const;
+
+    /**
+     * 告知 present queue，swapchain 上的指定 image 可以 present 了
+     * @param transfer_fence 状态为 signaled
+     * @return 检测 window 大小是否发生变化，决定是否要 recreate swapchain
+     */
+    [[nodiscard]] Hiss::Recreate image_submit(uint32_t image_index, vk::Semaphore render_semaphore,
+                                              vk::Semaphore trans_semaphore, vk::Fence transfer_fence,
+                                              vk::CommandBuffer present_command_buffer) const;
 
 
 private:

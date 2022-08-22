@@ -25,7 +25,7 @@ public:
 
 private:
     void prepare() override;
-    void update() noexcept override;
+    void update(double delte_time) noexcept override;
     void resize() override;
     void clean() override;
 

@@ -38,15 +38,17 @@ public:
     [[nodiscard]] vk::Device      vkdevice() const { return _device; }
     [[nodiscard]] const GPU&      gpu_get() const { return _gpu; }
     [[nodiscard]] spdlog::logger& logger() const { return _logger; }
-    [[nodiscard]] const Queue&    graphics_queue() const { return _graphics_queue; }
-    [[nodiscard]] const Queue&    present_queue() const { return _present_queue; }
-    [[nodiscard]] const Queue&    compute_queue() const { return _compute_queue; }
-    [[nodiscard]] CommandPool&    graphics_command_pool() const { return *_graphics_command_pool; }
-    [[nodiscard]] CommandPool&    present_command_pool() const { return *_present_command_pool; }
+    [[nodiscard]] const Queue&    queue_graphics() const { return _queue_graphics; }
+    [[nodiscard]] const Queue&    queue_present() const { return _queue_present; }
+    [[nodiscard]] const Queue&    queue_compute() const { return _queue_compute; }
+    [[nodiscard]] CommandPool&    command_pool_graphics() const { return *_command_pool_graphics; }
+    [[nodiscard]] CommandPool&    command_pool_present() const { return *_command_pool_present; }
+    [[nodiscard]] CommandPool&    command_pool_compute() const { return *_command_pool_compute; }
     [[nodiscard]] FencePool&      fence_pool() const { return *_fence_pool; }
 
     [[nodiscard]] vk::DeviceMemory memory_allocate(const vk::MemoryRequirements&  mem_require,
                                                    const vk::MemoryPropertyFlags& mem_prop) const;
+    vk::Semaphore                  semaphore_create(bool signal = false);
 
 
 private:
@@ -61,12 +63,12 @@ private:
     vk::Device      _device = VK_NULL_HANDLE;
 
 
-    Queue        _graphics_queue        = {};
-    Queue        _present_queue         = {};
-    Queue        _compute_queue         = {};
-    CommandPool* _graphics_command_pool = nullptr;
-    CommandPool* _compute_command_pool  = nullptr;
-    CommandPool* _present_command_pool  = nullptr;
+    Queue        _queue_graphics        = {};
+    Queue        _queue_present         = {};
+    Queue        _queue_compute         = {};
+    CommandPool* _command_pool_graphics = nullptr;
+    CommandPool* _command_pool_compute  = nullptr;
+    CommandPool* _command_pool_present  = nullptr;
     FencePool*   _fence_pool            = nullptr;
 };
 }    // namespace Hiss

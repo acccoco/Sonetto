@@ -16,13 +16,12 @@ public:
 
 private:
     void prepare() override;
-    void update() noexcept override;
+    void update(double delte_time) noexcept override;
     void resize() override;
     void clean() override;
 
     void pipeline_prepare();
     void command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_image_index);
-    void draw();
 
 
     // members =======================================================
