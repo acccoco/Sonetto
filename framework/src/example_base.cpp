@@ -165,6 +165,14 @@ void Hiss::ExampleBase::depth_buffer_prepare()
              .usage             = vk::ImageUsageFlagBits::eDepthStencilAttachment,
              .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
     });
+
+    // TODO 像这样，为各种 handle 添加上 name，debug 可以省事不少
+    _device->vkdevice().setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT{
+            .objectType   = vk::ObjectType::eImage,
+            .objectHandle = (uint64_t) (VkImage) _depth_image->vkimage(),
+            .pObjectName  = "default depth image",
+    });
+
     _depth_image->layout_tran(vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal,
                               vk::ImageAspectFlagBits::eDepth, 0, 1);
     _depth_image_view = new ImageView(*_depth_image, vk::ImageAspectFlagBits::eDepth, 0, 1);

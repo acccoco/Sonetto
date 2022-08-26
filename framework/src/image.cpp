@@ -134,7 +134,7 @@ void Hiss::Image::copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags a
  *      |_ layout transition(level#i): transfer_dst -> transfer_src
  *      |_ blit: level#i -> level#i+1(layout: transfer_dst)
  *      |_ layout transition(level#i): tranfer_src -> shader_read_only
- *  - layout transition(level#n): transfer_src -> shader_read_only
+ *  - layout transition(level#n): transfer_dst -> shader_read_only
  */
 bool Hiss::Image::mipmap_generate(vk::ImageAspectFlags aspect)
 {
