@@ -1,12 +1,19 @@
 #include "frame.hpp"
 
+#include <utility>
 
-Hiss::Frame::Frame(Hiss::Device& device)
-    : _device(device)
+
+Hiss::Frame::Frame(Device& device, std::string name)
+    : _device(device),
+      _name(std::move(name))
 {
-    _command_buffer_graphics = _device.command_pool_graphics().command_buffer_create(1).front();
-    _command_buffer_compute  = _device.command_pool_compute().command_buffer_create(1).front();
-    _command_buffer_present  = _device.command_pool_present().command_buffer_create(1).front();
+    _command_buffer_graphics =
+            _device.command_pool_graphics().command_buffer_create("frame_" + _name + "_graphics_command_buffer");
+    _command_buffer_compute =
+            _device.command_pool_compute().command_buffer_create("frame_" + _name + "_compute_command_buffer");
+    _command_buffer_present =
+            _device.command_pool_present().command_buffer_create("frame_" + _name + "_present_command_buffer");
+
 
     _semaphore_render_complete   = _device.vkdevice().createSemaphore(vk::SemaphoreCreateInfo{});
     _semaphore_swapchain_acquire = _device.vkdevice().createSemaphore(vk::SemaphoreCreateInfo{});

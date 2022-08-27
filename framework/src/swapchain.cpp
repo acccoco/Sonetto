@@ -167,26 +167,31 @@ Hiss::Recreate Hiss::Swapchain::image_submit(uint32_t image_index, vk::Semaphore
     {
         present_command_buffer.reset();
         present_command_buffer.begin(vk::CommandBufferBeginInfo{});
+
         /**
-         * 不需要 src/dst 的 access 和 stage，这些都由前后的 semaphore 保证
+         * 同时有 queue famliy transfer 与 image layout transition，根据 synchronization examples 来还是有问题
+         * 会发生 write after write hazard，大概就是 layout transition 的 write 之后又发生了 queue transfer 的 write
+         * barrier 的 src stage, src access，以及 submit 的 wait stage 都需要小心对待
          */
-        vk::ImageMemoryBarrier acquire_barrier = {
-                .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
-                .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-                .srcQueueFamilyIndex = _device.queue_graphics().family_index,
-                .dstQueueFamilyIndex = _device.queue_present().family_index,
-                .image               = this->_images[image_index],
-                .subresourceRange    = {.aspectMask     = vk::ImageAspectFlagBits::eColor,
-                                        .baseMipLevel   = 0,
-                                        .levelCount     = 1,
-                                        .baseArrayLayer = 0,
-                                        .layerCount     = 1},
-        };
-        present_command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                               vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, {acquire_barrier});
+        present_command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                               vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {},
+                                               {vk::ImageMemoryBarrier{
+                                                       .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
+
+                                                       .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
+                                                       .newLayout           = vk::ImageLayout::ePresentSrcKHR,
+                                                       .srcQueueFamilyIndex = _device.queue_graphics().family_index,
+                                                       .dstQueueFamilyIndex = _device.queue_present().family_index,
+                                                       .image               = this->_images[image_index],
+                                                       .subresourceRange    = _subresource_range,
+                                               }});
         present_command_buffer.end();
 
-        vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eTopOfPipe;
+        /**
+         * top 用于 dst，相当于 all stages，但是 access = 0，实验发现这里不能用 top
+         * 猜测是因为 layout transfer 发生于 semaphore 之后
+         */
+        vk::PipelineStageFlags wait_stage = vk::PipelineStageFlagBits::eAllCommands;
         _device.vkdevice().resetFences({transfer_fence});
         _device.queue_present().queue.submit({vk::SubmitInfo{
                                                      .waitSemaphoreCount   = 1,

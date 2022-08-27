@@ -213,9 +213,9 @@ void Hiss::ExampleBase::prepare()
     _logger->info("[swapchain] image count: {}", _swapchain->images_count());
 
 
-    for (auto& frame: _frames)
+    for (size_t i = 0; i < _frames.size(); ++i)
     {
-        frame = new Frame(*_device);
+        _frames[i] = new Frame(*_device, std::to_string(i));
     }
     _logger->info("[render context] frames in-flight: {}", 2);
 

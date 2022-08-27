@@ -7,7 +7,7 @@ namespace Hiss
 class Frame
 {
 public:
-    explicit Frame(Device& device);
+    explicit Frame(Device& device, std::string name);
     ~Frame();
 
     [[nodiscard]] vk::CommandBuffer command_buffer_graphics() const { return _command_buffer_graphics; }
@@ -24,7 +24,8 @@ public:
     std::vector<vk::Fence>  fence_pop_all();
 
 private:
-    const Device& _device;
+    const Device&     _device;
+    const std::string _name;
 
     vk::CommandBuffer _command_buffer_graphics = VK_NULL_HANDLE;
     vk::CommandBuffer _command_buffer_present  = VK_NULL_HANDLE;

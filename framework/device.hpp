@@ -50,6 +50,9 @@ public:
                                                    const vk::MemoryPropertyFlags& mem_prop) const;
     vk::Semaphore                  semaphore_create(bool signal = false);
 
+    template<class handle_t>
+    void debug_obj_name_set(vk::ObjectType type, handle_t handle, std::string name) const;
+
 
 private:
     void logical_device_create();
@@ -72,3 +75,14 @@ private:
     FencePool*   _fence_pool            = nullptr;
 };
 }    // namespace Hiss
+
+
+template<class handle_t>
+void Hiss::Device::debug_obj_name_set(vk::ObjectType type, handle_t handle, std::string name) const
+{
+    _device.setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT{
+            .objectType   = type,
+            .objectHandle = (uint64_t) handle,
+            .pObjectName  = name.c_str(),
+    });
+}

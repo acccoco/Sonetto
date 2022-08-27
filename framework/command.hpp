@@ -24,6 +24,11 @@ public:
 
     std::vector<vk::CommandBuffer> command_buffer_create(uint32_t count = 1);
 
+    /**
+     * 创建一个 command buffer，并注册用于 debug 的 object name
+     */
+    vk::CommandBuffer command_buffer_create(std::string name);
+
 private:
     const Device&   _device;
     const Queue&    _queue;

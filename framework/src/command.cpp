@@ -2,7 +2,7 @@
 #include "device.hpp"
 
 
-Hiss::CommandPool::CommandPool(Device &device, const Queue &queue)
+Hiss::CommandPool::CommandPool(Device& device, const Queue& queue)
     : _device(device),
       _queue(queue)
 {
@@ -28,7 +28,15 @@ std::vector<vk::CommandBuffer> Hiss::CommandPool::command_buffer_create(uint32_t
 }
 
 
-Hiss::OneTimeCommand::OneTimeCommand(Hiss::Device &device, Hiss::CommandPool &pool)
+vk::CommandBuffer Hiss::CommandPool::command_buffer_create(std::string name)
+{
+    auto command_buffer = this->command_buffer_create(1).front();
+    _device.debug_obj_name_set(vk::ObjectType::eCommandBuffer, (VkCommandBuffer) command_buffer, std::move(name));
+    return command_buffer;
+}
+
+
+Hiss::OneTimeCommand::OneTimeCommand(Hiss::Device& device, Hiss::CommandPool& pool)
     : _device(device),
       _pool(pool)
 {

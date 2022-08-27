@@ -44,25 +44,26 @@ void HelloTriangle::command_record(vk::CommandBuffer command_buffer, uint32_t sw
      * depth barrier: 只是 execution barrier，确保对 depth buffer 的写入不会乱序
      * color barrier: 负责将 swapchain 的 present layout 转换为 color layout
      */
-    vk::ImageMemoryBarrier depth_barrier = {
-            .srcAccessMask    = {},    // execution barrier
-            .dstAccessMask    = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-            .oldLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-            .newLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-            .image            = _depth_image->vkimage(),
-            .subresourceRange = _depth_image_view->subresource_range(),
-    };
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests,
-                                   vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, {}, {}, {depth_barrier});
-    vk::ImageMemoryBarrier color_barrier = {
-            .dstAccessMask    = vk::AccessFlagBits::eColorAttachmentWrite,
-            .oldLayout        = vk::ImageLayout::eUndefined,
-            .newLayout        = vk::ImageLayout::eColorAttachmentOptimal,
-            .image            = _swapchain->vkimage(swapchain_image_index),
-            .subresourceRange = _swapchain->subresource_range(),
-    };
+                                   vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, {}, {},
+                                   {vk::ImageMemoryBarrier{
+                                           .srcAccessMask    = {},    // execution barrier
+                                           .dstAccessMask    = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+                                           .oldLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                                           .newLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                                           .image            = _depth_image->vkimage(),
+                                           .subresourceRange = _depth_image_view->subresource_range(),
+                                   }});
+
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                   vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, {}, {}, {color_barrier});
+                                   vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, {}, {},
+                                   {vk::ImageMemoryBarrier{
+                                           .dstAccessMask    = vk::AccessFlagBits::eColorAttachmentWrite,
+                                           .oldLayout        = vk::ImageLayout::eUndefined,
+                                           .newLayout        = vk::ImageLayout::eColorAttachmentOptimal,
+                                           .image            = _swapchain->vkimage(swapchain_image_index),
+                                           .subresourceRange = _swapchain->subresource_range(),
+                                   }});
 
 
     /* 绘制过程 */
@@ -88,23 +89,17 @@ void HelloTriangle::command_record(vk::CommandBuffer command_buffer, uint32_t sw
 
 
     /* queue family ownership transfer: release and layout transition */
-    vk::ImageMemoryBarrier release_barrier = {
-            .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
-            .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
-            .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-            .srcQueueFamilyIndex = _device->queue_graphics().family_index,
-            .dstQueueFamilyIndex = _device->queue_present().family_index,
-            .image               = _swapchain->vkimage(swapchain_image_index),
-            .subresourceRange    = _swapchain->subresource_range(),
-    };
-    if (!Hiss::Queue::is_same_queue_family(_device->queue_present(), _device->queue_graphics()))
-    {
-        release_barrier.srcQueueFamilyIndex = _device->queue_graphics().family_index;
-        release_barrier.dstQueueFamilyIndex = _device->queue_present().family_index;
-    }
-
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                   vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, {release_barrier});
+                                   vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {},
+                                   {vk::ImageMemoryBarrier{
+                                           .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
+                                           .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
+                                           .newLayout           = vk::ImageLayout::ePresentSrcKHR,
+                                           .srcQueueFamilyIndex = _device->queue_graphics().family_index,
+                                           .dstQueueFamilyIndex = _device->queue_present().family_index,
+                                           .image               = _swapchain->vkimage(swapchain_image_index),
+                                           .subresourceRange    = _swapchain->subresource_range(),
+                                   }});
 
 
     command_buffer.end();

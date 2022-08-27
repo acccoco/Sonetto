@@ -62,4 +62,15 @@ inline bool is_depth_stencil_format(vk::Format format)
 bool instance_layers_check(const std::vector<const char*>& layers);
 
 
+/* 仅用于 DEBUG，包含所有的访问 flag */
+const vk::AccessFlags ALL_ACCESS =
+        vk::AccessFlagBits::eIndirectCommandRead | vk::AccessFlagBits::eIndexRead
+        | vk::AccessFlagBits::eVertexAttributeRead | vk::AccessFlagBits::eUniformRead
+        | vk::AccessFlagBits::eInputAttachmentRead | vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite
+        | vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite
+        | vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite
+        | vk::AccessFlagBits::eTransferRead | vk::AccessFlagBits::eTransferWrite | vk::AccessFlagBits::eHostRead
+        | vk::AccessFlagBits::eHostWrite;
+
+
 }    // namespace Hiss

@@ -79,6 +79,10 @@ void Hiss::Device::logical_device_create()
     _logger.info("[Device] queue graphics family index: {}", _queue_graphics.family_index);
     _logger.info("[Device] queue present family index: {}", _queue_present.family_index);
     _logger.info("[Device] queue compute family index: {}", _queue_compute.family_index);
+
+    this->debug_obj_name_set(vk::ObjectType::eQueue, (VkQueue) _queue_graphics.queue, "graphics_queue");
+    this->debug_obj_name_set(vk::ObjectType::eQueue, (VkQueue) _queue_compute.queue, "compute_queue");
+    this->debug_obj_name_set(vk::ObjectType::eQueue, (VkQueue) _queue_present.queue, "present_queue");
 }
 
 
@@ -87,6 +91,13 @@ void Hiss::Device::command_pool_create()
     _command_pool_graphics = new CommandPool(*this, _queue_graphics);
     _command_pool_present  = new CommandPool(*this, _queue_present);
     _command_pool_compute  = new CommandPool(*this, _queue_compute);
+
+    this->debug_obj_name_set(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool_graphics->pool_get(),
+                             "graphcis_command_pool");
+    this->debug_obj_name_set(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool_compute->pool_get(),
+                             "compute_command_pool");
+    this->debug_obj_name_set(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool_present->pool_get(),
+                             "present_command_pool");
 }
 
 
