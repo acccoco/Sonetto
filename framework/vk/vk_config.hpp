@@ -1,0 +1,100 @@
+#pragma once
+#include <vector>
+#include "vk/vk_common.hpp"
+
+
+namespace Hiss
+{
+
+/* MoltenVk 是 Vulkan 1.1 的实现 */
+const uint32_t VK_VERSION = VK_API_VERSION_1_1;
+
+// instance 需要的 layers
+inline std::vector<const char*> get_layers()
+{
+    return {
+            "VK_LAYER_KHRONOS_validation",
+
+            /**
+             * 已知的问题：
+             * 使用 portability device 有两种方法：
+             *  1. 开启 render doc layer
+             *  2. 使用 portablity extension
+             * 注1：render doc layer 不支持 portability extension
+             * 注2：可以在 vulkan config 应用中覆盖全局的 layer 配置
+             */
+            // "VK_LAYER_RENDERDOC_Capture",
+
+            /**
+             * synchronization2 需要硬件支持，还需要 vulkan api version 在 1.3 以上
+             */
+            // "VK_LAYER_KHRONOS_synchronization2",
+    };
+}
+
+
+/// NOTE 这不是什么好设计，但是将这些配置信息放在一起，可以让程序更加简洁
+inline std::vector<const char*> get_instance_extensions_glfw()
+{
+    uint32_t     extension_cnt = 0;
+    const char** extensions    = glfwGetRequiredInstanceExtensions(&extension_cnt);
+
+    std::vector<const char*> extension_list;
+    for (int i = 0; i < extension_cnt; ++i)
+        extension_list.push_back(extensions[i]);
+    return extension_list;
+}
+
+inline std::vector<const char*> get_instance_extensions()
+{
+
+    std::vector<const char*> extensions = {
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,                // 可以将 validation 信息打印出来
+            VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,    // 基于 metal API 的 vulkan 实现需要这些扩展
+    };
+
+    // NOTE 确保 GLFW 已经初始化了
+    auto glfw_extensions = get_instance_extensions_glfw();
+    extensions.insert(extensions.end(), glfw_extensions.begin(), glfw_extensions.end());
+
+
+    return extensions;
+}
+
+
+/**
+ * 表示 vulkan 除了枚举出默认的 physical device 外，
+ * 还会枚举出符合 vulkan 可移植性的 physical device
+ * 基于 metal 的 vulkan 需要这个
+ */
+const vk::InstanceCreateFlags INSTANCE_FLAGS = vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR;
+
+
+inline std::vector<const char*> get_device_extensions()
+{
+    return {
+            /* 这是一个临时的扩展（vulkan_beta.h)，在 metal API 上模拟 vulkan 需要这个扩展 */
+            VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
+
+            /* 可以将渲染结果呈现到 window surface 上 */
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+
+            // dynamic render 需要的扩展
+            VK_KHR_CREATE_RENDERPASS_2_EXTENSION_NAME,
+            VK_KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME,
+            VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+    };
+}
+
+
+inline vk::PhysicalDeviceFeatures get_device_features()
+{
+
+    return vk::PhysicalDeviceFeatures{
+            .tessellationShader = VK_TRUE,
+            .sampleRateShading  = VK_TRUE,
+            .samplerAnisotropy  = VK_TRUE,
+    };
+};
+
+}    // namespace Hiss

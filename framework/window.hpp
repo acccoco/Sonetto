@@ -1,5 +1,5 @@
 #pragma once
-#include "vk_common.hpp"
+#include "vk/vk_common.hpp"
 
 
 namespace Hiss
@@ -12,15 +12,27 @@ public:
     ~Window();
 
 
-    GLFWwindow*                  handle_get() { return _window; }
-    [[nodiscard]] bool           has_resized() const { return _user_data.resized; }
-    void                         resize_state_clear() { _user_data.resized = false; }
-    void                         wait_exit_minimize();
-    [[nodiscard]] vk::SurfaceKHR surface_create(vk::Instance instance) const;
-    [[nodiscard]] vk::Extent2D   extent_get() const;
+    GLFWwindow*        window() { return _window; }
+    [[nodiscard]] bool has_resized() const { return _user_data.resized; }
+    void               clear_resized_state() { _user_data.resized = false; }
+
+    /// 等待退出最小化模式
+    void wait_exit_minimized();
+
+    [[nodiscard]] vk::SurfaceKHR create_surface(vk::Instance instance) const;
+    [[nodiscard]] vk::Extent2D   get_extent() const;
+
+    [[nodiscard]] bool should_close() const { return glfwWindowShouldClose(this->_window); }
+
+    void poll_event()
+    {
+        glfwPollEvents();
+        if (glfwGetKey(_window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(_window, true);
+    }
 
 
-    [[nodiscard]] std::vector<const char*> extensions_get() const;
+    [[nodiscard]] std::vector<const char*> get_extensions() const;
 
 
 private:

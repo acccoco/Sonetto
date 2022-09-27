@@ -1,6 +1,6 @@
 #include "compute_shader_Nbody.hpp"
-#include "tools.hpp"
-#include <random>
+#include "utils/tools.hpp"
+#include "utils/rand.hpp"
 
 
 APP_RUN(ComputeShaderNBody)
@@ -8,7 +8,7 @@ APP_RUN(ComputeShaderNBody)
 
 void ComputeShaderNBody::prepare()
 {
-    Hiss::ExampleBase::prepare();
+    Hiss::VkApplication::prepare();
     _logger->info("[NBody] prepare");
 
     /* 公共部分初始化 */
@@ -33,13 +33,13 @@ void ComputeShaderNBody::clean()
     DELETE(storage_buffer);
     _device->vkdevice().destroy(descriptor_pool);
 
-    Hiss::ExampleBase::clean();
+    Hiss::VkApplication::clean();
 }
 
 
 void ComputeShaderNBody::resize()
 {
-    Hiss::ExampleBase::resize();
+    Hiss::VkApplication::resize();
 }
 
 
@@ -71,7 +71,7 @@ void ComputeShaderNBody::compute_prepare()
     /* 录制 command buffer */
     for (size_t i = 0; i < IN_FLIGHT_CNT; ++i)
     {
-        compute_command_prepare(command_buffers_compute()[i], compute.descriptor_sets[i]);
+        compute_command_prepare(compute_command_buffer()[i], compute.descriptor_sets[i]);
     }
 }
 
@@ -153,7 +153,7 @@ void ComputeShaderNBody::compute_pipeline_prepare()
                 &compute.specialization_data,
         };
         vk::ComputePipelineCreateInfo pipeline_info = {
-                .stage  = shader_load(compute.shader_file_calculate, vk::ShaderStageFlagBits::eCompute),
+                .stage  = _shader_loader->load(compute.shader_file_calculate, vk::ShaderStageFlagBits::eCompute),
                 .layout = compute.pipeline_layout,
         };
         pipeline_info.stage.pSpecializationInfo = &specialization_info;
@@ -178,7 +178,7 @@ void ComputeShaderNBody::compute_pipeline_prepare()
         };
 
         vk::ComputePipelineCreateInfo pipeline_info = {
-                .stage  = shader_load(compute.shader_file_integrate, vk::ShaderStageFlagBits::eCompute),
+                .stage  = _shader_loader->load(compute.shader_file_integrate, vk::ShaderStageFlagBits::eCompute),
                 .layout = compute.pipeline_layout,
         };
         pipeline_info.stage.pSpecializationInfo = &specialization_info;
@@ -333,6 +333,7 @@ void ComputeShaderNBody::particles_prepare()
     num_particles = attractors.size() * PARTICLES_PER_ATTRACTOR;
     particles     = std::vector<Particle>(num_particles);
 
+    Hiss::Rand rand;
 
     /* initial particle position and velocity */
     for (uint32_t attr_idx = 0; attr_idx < static_cast<uint32_t>(attractors.size()); ++attr_idx)
@@ -350,16 +351,16 @@ void ComputeShaderNBody::particles_prepare()
             else
             {
                 /* position */
-                glm::vec3 position = attractors[attr_idx] + 0.75f * glm::vec3(rand_norm(), rand_norm(), rand_norm());
+                glm::vec3 position = attractors[attr_idx] + 0.75f * glm::vec3(rand.normal_0_1(), rand.normal_0_1(), rand.normal_0_1());
                 float     len      = glm::length(glm::normalize(position - attractors[attr_idx]));
                 position.y *= 2.f - (len * len);
 
                 /* velocity */
                 glm::vec3 angular  = glm::vec3(0.5f, 1.5f, 0.5f) * (attr_idx % 2 == 0 ? 1.f : -1.f);
                 glm::vec3 velocity = glm::cross((position - attractors[attr_idx]), angular)
-                                   + glm::vec3(rand_norm(), rand_norm(), rand_norm() * 0.025f);
+                                   + glm::vec3(rand.normal_0_1(), rand.normal_0_1(), rand.normal_0_1() * 0.025f);
 
-                float mass   = (rand_norm() * 0.5f + 0.5f) * 75.f;
+                float mass   = (rand.normal_0_1() * 0.5f + 0.5f) * 75.f;
                 particle.pos = glm::vec4(position, mass);
                 particle.vel = glm::vec4(velocity, 0.f);
             }
@@ -421,13 +422,13 @@ void ComputeShaderNBody::storage_buffer_prepare()
 void ComputeShaderNBody::graphics_uniform_buffer_prepare()
 {
     graphics.ubo.projection = glm::perspective(glm::radians(60.f),
-                                               static_cast<float>(_swapchain->extent_get().width)
-                                                       / static_cast<float>(_swapchain->extent_get().height),
+                                               static_cast<float>(_swapchain->get_extent().width)
+                                                       / static_cast<float>(_swapchain->get_extent().height),
                                                0.1f, 256.f);
     graphics.ubo.projection[1][1] *= -1.f;
     graphics.ubo.view       = glm::lookAt(glm::vec3(8.f, 8.f, 8.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-    graphics.ubo.screen_dim = glm::vec2(static_cast<float>(_swapchain->extent_get().width),
-                                        static_cast<float>(_swapchain->extent_get().height));
+    graphics.ubo.screen_dim = glm::vec2(static_cast<float>(_swapchain->get_extent().width),
+                                        static_cast<float>(_swapchain->get_extent().height));
 
 
     for (auto& uniform_buffer: graphics.uniform_buffers)
@@ -463,9 +464,9 @@ void ComputeShaderNBody::compute_uniform_buffer_prepare()
 void ComputeShaderNBody::graphics_pipeline_prepare()
 {
     /* shader stage */
-    graphics.pipeline_state.shader_stage_add(shader_load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
+    graphics.pipeline_state.shader_stage_add(_shader_loader->load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
     graphics.pipeline_state.shader_stage_add(
-            shader_load(graphics.frag_shader_path, vk::ShaderStageFlagBits::eFragment));
+            _shader_loader->load(graphics.frag_shader_path, vk::ShaderStageFlagBits::eFragment));
 
     /* vertex, index and assembly */
     graphics.pipeline_state.vertex_input_binding_set({vk::VertexInputBindingDescription{
@@ -620,7 +621,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
                                            .oldLayout        = vk::ImageLayout::eUndefined,
                                            .newLayout        = vk::ImageLayout::eColorAttachmentOptimal,
                                            .image            = color_image,
-                                           .subresourceRange = _swapchain->subresource_range(),
+                                           .subresourceRange = _swapchain->get_image_subresource_range(),
                                    }});
 
     /* queue ownership transfer acquire(storage buffer): compute -> graphics */
@@ -645,14 +646,14 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
             vk::RenderPassBeginInfo{
                     .renderPass      = _simple_render_pass,
                     .framebuffer     = framebuffer,
-                    .renderArea      = {.offset = {0, 0}, .extent = _swapchain->extent_get()},
+                    .renderArea      = {.offset = {0, 0}, .extent = _swapchain->get_extent()},
                     .clearValueCount = static_cast<uint32_t>(clear_values.size()),
                     .pClearValues    = clear_values.data(),
             },
             vk::SubpassContents::eInline);
-    command_buffer.setViewport(0, {vk::Viewport{0.f, 0.f, (float) _swapchain->extent_get().width,
-                                                (float) _swapchain->extent_get().height, 0.f, 1.f}});
-    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = _swapchain->extent_get()}});
+    command_buffer.setViewport(0, {vk::Viewport{0.f, 0.f, (float) _swapchain->get_extent().width,
+                                                (float) _swapchain->get_extent().height, 0.f, 1.f}});
+    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = _swapchain->get_extent()}});
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
     command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipeline_layout, 0, {descriptor_set},
                                       {});
@@ -687,7 +688,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
                                            .srcQueueFamilyIndex = _device->queue_graphics().family_index,
                                            .dstQueueFamilyIndex = _device->queue_present().family_index,
                                            .image               = color_image,
-                                           .subresourceRange    = _swapchain->subresource_range(),
+                                           .subresourceRange    = _swapchain->get_image_subresource_range(),
                                    }});
 
     command_buffer.end();
@@ -696,9 +697,10 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
 
 void ComputeShaderNBody::update(double delta_time) noexcept
 {
-    Hiss::ExampleBase::update(delta_time);
+    delta_time /= 1000;
+    Hiss::VkApplication::update(delta_time);
 
-    frame_prepare();
+    prepare_frame();
 
 
     /* update uniform buffers */
@@ -711,7 +713,7 @@ void ComputeShaderNBody::update(double delta_time) noexcept
     graphics_command_buffer.reset();
     graphcis_command_record(graphics_command_buffer, _framebuffers[current_swapchain_image_index()],
                             graphics.descriptor_sets[current_frame_index()],
-                            _swapchain->vkimage(current_swapchain_image_index()));
+                            _swapchain->get_image(current_swapchain_image_index()));
 
 
     /* graphics draw */
@@ -727,7 +729,7 @@ void ComputeShaderNBody::update(double delta_time) noexcept
             graphics.semaphores[current_frame_index()],
             current_frame().semaphore_render_complete(),
     };
-    vk::Fence graphics_fence = _device->fence_pool().get(false);
+    vk::Fence graphics_fence = _device->fence_pool().acquire(false);
     _device->queue_graphics().queue.submit(
             vk::SubmitInfo{
                     .waitSemaphoreCount   = static_cast<uint32_t>(grahics_wait_semaphores.size()),
@@ -742,14 +744,14 @@ void ComputeShaderNBody::update(double delta_time) noexcept
     current_frame().fence_push(graphics_fence);
 
 
-    frame_submit();
+    submit_frame();
 
 
     /* compute: 更新 storage buffer */
     vk::PipelineStageFlags compute_wait_stage        = vk::PipelineStageFlagBits::eComputeShader;
     vk::Semaphore          compute_wait_semaphore    = graphics.semaphores[current_frame_index()];
     vk::Semaphore          compute_singlal_semaphore = compute.semaphores[current_frame_index()];
-    vk::Fence              compute_fence             = _device->fence_pool().get(false);
+    vk::Fence              compute_fence             = _device->fence_pool().acquire(false);
     vk::CommandBuffer      compute_command_buffer    = current_frame().command_buffer_compute();
     _device->queue_compute().queue.submit(
             vk::SubmitInfo{

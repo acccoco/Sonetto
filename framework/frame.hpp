@@ -1,5 +1,5 @@
 #pragma once
-#include "device.hpp"
+#include "vk/device.hpp"
 
 
 namespace Hiss

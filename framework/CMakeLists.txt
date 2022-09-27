@@ -28,41 +28,41 @@ set(LIBS
 
 set(HEADER_FILES
         application.hpp
-        buffer.hpp
-        framebuffer.hpp
-        image.hpp
-        model.hpp
-        swapchain.hpp
-        texture.hpp
-        tools.hpp
-        vertex.hpp
-        vk_common.hpp
-        instance.hpp
+        vk/buffer.hpp
+        vk/framebuffer.hpp
+        vk/image.hpp
+        vk/model.hpp
+        vk/swapchain.hpp
+        vk/texture.hpp
+        utils/tools.hpp
+        vk/vertex.hpp
+        vk/vk_common.hpp
+        vk/instance.hpp
         window.hpp
-        device.hpp
-        physical_device.hpp
-        example_base.hpp
-        pipeline.hpp
-        command.hpp frame.hpp)
+        vk/device.hpp
+        vk/physical_device.hpp
+        vk_application.hpp
+        vk/pipeline.hpp
+        vk/command.hpp frame.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame_manager.hpp utils/semaphore_pool.hpp vk/vk_config.hpp)
 
 # source files
 set(SOURCE_FILES
-        src/buffer.cpp
-        src/image.cpp
-        src/framebuffer.cpp
-        src/vertex.cpp
-        src/texture.cpp
-        src/application.cpp
-        src/instance.cpp
-        src/window.cpp
-        src/device.cpp
-        src/vk_common.cpp
-        src/physical_device.cpp
-        src/swapchain.cpp
-        src/example_base.cpp
-        src/pipeline.cpp
-        src/command.cpp
-        src/fence_pool.cpp src/tools.cpp src/model.cpp src/frame.cpp)
+        vk/buffer.cpp
+        vk/image.cpp
+        vk/framebuffer.cpp
+        vk/vertex.cpp
+        vk/texture.cpp
+        application.cpp
+        vk/instance.cpp
+        window.cpp
+        vk/device.cpp
+        vk/vk_common.cpp
+        vk/physical_device.cpp
+        vk/swapchain.cpp
+        vk_application.cpp
+        vk/pipeline.cpp
+        vk/command.cpp
+        vk/fence_pool.cpp utils/tools.cpp vk/model.cpp frame.cpp)
 
 
 # static library

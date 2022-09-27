@@ -1,8 +1,8 @@
 #pragma once
-#include <example_base.hpp>
+#include <vk_application.hpp>
 #include "proj_profile.hpp"
-#include "texture.hpp"
-#include "pipeline.hpp"
+#include "vk/texture.hpp"
+#include "vk/pipeline.hpp"
 
 
 struct GraphcisUBO
@@ -33,11 +33,11 @@ struct MovementSpecializationData
 };
 
 
-class ComputeShaderNBody : public Hiss::ExampleBase
+class ComputeShaderNBody : public Hiss::VkApplication
 {
 public:
     ComputeShaderNBody()
-        : ExampleBase("n_body")
+        : VkApplication("n_body")
     {}
     ~ComputeShaderNBody() override = default;
 
@@ -102,7 +102,7 @@ private:
     struct Graphics
     {
         std::vector<vk::DescriptorSet> descriptor_sets       = {};
-        Hiss::GraphicsPipelineState    pipeline_state        = {};
+        Hiss::GraphicsPipelineTemplate pipeline_state        = {};
         vk::DescriptorSetLayout        descriptor_set_layout = VK_NULL_HANDLE;
         vk::PipelineLayout             pipeline_layout       = VK_NULL_HANDLE;
         vk::Pipeline                   pipeline              = VK_NULL_HANDLE;

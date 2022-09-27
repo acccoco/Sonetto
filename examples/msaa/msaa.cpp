@@ -6,7 +6,7 @@ APP_RUN(MSAA)
 
 void MSAA::prepare()
 {
-    ExampleBase::prepare();
+    VkApplication::prepare();
     _logger->info("[MSAA] prepare");
 
 
@@ -46,13 +46,13 @@ void MSAA::clean()
     render_pass_clean();
 
 
-    ExampleBase::clean();
+    VkApplication::clean();
 }
 
 
 void MSAA::resize()
 {
-    ExampleBase::resize();
+    VkApplication::resize();
     _logger->info("[MSAA] resize");
 
 
@@ -67,10 +67,10 @@ void MSAA::msaa_framebuffer_prepare()
 
 
     /* color image and image view */
-    _msaa_color_image = new Hiss::Image(Hiss::Image::ImageCreateInfo{
+    _msaa_color_image = new Hiss::Image(Hiss::Image::CreateInfo{
             .device            = *_device,
-            .format            = _swapchain->color_format(),
-            .extent            = _swapchain->extent_get(),
+            .format            = _swapchain->get_color_format(),
+            .extent            = _swapchain->get_extent(),
             .usage             = vk::ImageUsageFlagBits::eColorAttachment,
             .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
             .samples           = _sample,
@@ -81,10 +81,10 @@ void MSAA::msaa_framebuffer_prepare()
 
 
     /* depth image and image view */
-    _msaa_depth_image = new Hiss::Image(Hiss::Image::ImageCreateInfo{
+    _msaa_depth_image = new Hiss::Image(Hiss::Image::CreateInfo{
             .device            = *_device,
-            .format            = depth_format_get(),
-            .extent            = _swapchain->extent_get(),
+            .format            = get_depth_format(),
+            .extent            = _swapchain->get_extent(),
             .usage             = vk::ImageUsageFlagBits::eDepthStencilAttachment,
             .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
             .samples           = _sample,
@@ -95,13 +95,13 @@ void MSAA::msaa_framebuffer_prepare()
 
 
     /* framebuffer */
-    _msaa_framebuffers.resize(_swapchain->images_count());
+    _msaa_framebuffers.resize(_swapchain->get_image_number());
     assert(_msaa_renderpass);
     for (size_t i = 0; i < _msaa_framebuffers.size(); ++i)
     {
-        _msaa_framebuffers[i] = new Hiss::Framebuffer3(*_device, _msaa_renderpass, _swapchain->extent_get(),
+        _msaa_framebuffers[i] = new Hiss::Framebuffer3(*_device, _msaa_renderpass, _swapchain->get_extent(),
                                                        _msaa_color_view->view_get(), _msaa_depth_view->view_get(),
-                                                       _swapchain->image_view_get(i));
+                                                       _swapchain->get_image_view(i));
     }
 }
 
@@ -129,7 +129,7 @@ void MSAA::render_pass_prepare()
     std::vector<vk::AttachmentDescription> attachments = {
             /* color attachment */
             vk::AttachmentDescription{
-                    .format        = _swapchain->color_format(),
+                    .format        = _swapchain->get_color_format(),
                     .samples       = _sample,
                     .loadOp        = vk::AttachmentLoadOp::eClear,
                     .storeOp       = vk::AttachmentStoreOp::eDontCare,
@@ -147,7 +147,7 @@ void MSAA::render_pass_prepare()
             },
             /* resolve attachment */
             vk::AttachmentDescription{
-                    .format        = _swapchain->color_format(),
+                    .format        = _swapchain->get_color_format(),
                     .samples       = vk::SampleCountFlagBits::e1,
                     .loadOp        = vk::AttachmentLoadOp::eDontCare,
                     .storeOp       = vk::AttachmentStoreOp::eStore,
@@ -210,8 +210,8 @@ void MSAA::pipeline_prepare()
 {
     _logger->info("[MSAA] pipeline create");
 
-    _pipeline_state.shader_stage_add(shader_load(vert_shader_path, vk::ShaderStageFlagBits::eVertex));
-    _pipeline_state.shader_stage_add(shader_load(frag_shader_path, vk::ShaderStageFlagBits::eFragment));
+    _pipeline_state.shader_stage_add(_shader_loader->load(vert_shader_path, vk::ShaderStageFlagBits::eVertex));
+    _pipeline_state.shader_stage_add(_shader_loader->load(frag_shader_path, vk::ShaderStageFlagBits::eFragment));
 
     _pipeline_state.vertex_input_binding_set(Hiss::Vertex3DColorUv::binding_description_get(0));
     _pipeline_state.vertex_input_attribute_set(Hiss::Vertex3DColorUv::attribute_description_get(0));
@@ -237,8 +237,8 @@ void MSAA::pipeline_prepare()
 
 void MSAA::update(double delte_time) noexcept
 {
-    Hiss::ExampleBase::update(delte_time);
-    frame_prepare();
+    Hiss::VkApplication::update(delte_time);
+    prepare_frame();
 
 
     /* record command */
@@ -248,7 +248,7 @@ void MSAA::update(double delte_time) noexcept
 
 
     /* submit command */
-    vk::Fence                             fence             = _device->fence_pool().get(false);
+    vk::Fence                             fence             = _device->fence_pool().acquire(false);
     std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
     std::array<vk::Semaphore, 1>          wait_semaphores   = {current_frame().semaphore_swapchain_acquire()};
     std::array<vk::Semaphore, 1>          signal_semaphores = {current_frame().semaphore_render_complete()};
@@ -266,7 +266,7 @@ void MSAA::update(double delte_time) noexcept
     current_frame().fence_push(fence);
 
 
-    frame_submit();
+    submit_frame();
 }
 
 
@@ -441,8 +441,8 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
             .dstAccessMask    = vk::AccessFlagBits::eColorAttachmentWrite,
             .oldLayout        = vk::ImageLayout::eUndefined,
             .newLayout        = vk::ImageLayout::eColorAttachmentOptimal,
-            .image            = _swapchain->vkimage(swapchain_image_index),
-            .subresourceRange = _swapchain->subresource_range(),
+            .image            = _swapchain->get_image(swapchain_image_index),
+            .subresourceRange = _swapchain->get_image_subresource_range(),
     };
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
                                    vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, {}, {},
@@ -454,7 +454,7 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
             vk::RenderPassBeginInfo{
                     .renderPass      = _msaa_renderpass,
                     .framebuffer     = _msaa_framebuffers[swapchain_image_index]->framebuffer(),
-                    .renderArea      = {.offset = {0, 0}, .extent = _swapchain->extent_get()},
+                    .renderArea      = {.offset = {0, 0}, .extent = _swapchain->get_extent()},
                     .clearValueCount = static_cast<uint32_t>(clear_values.size()),
                     .pClearValues    = clear_values.data(),
             },
@@ -465,10 +465,10 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
     command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0,
                                       {_descriptor_sets[current_frame_index()]}, {});
-    viewport.width  = static_cast<float>(_swapchain->extent_get().width);
-    viewport.height = static_cast<float>(_swapchain->extent_get().height);
+    viewport.width  = static_cast<float>(_swapchain->get_extent().width);
+    viewport.height = static_cast<float>(_swapchain->get_extent().height);
     command_buffer.setViewport(0, {viewport});
-    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = _swapchain->extent_get()}});
+    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = _swapchain->get_extent()}});
     command_buffer.drawIndexed(static_cast<uint32_t>(_mesh->index_cnt()), 1, 0, 0, 0);
     command_buffer.endRenderPass();
 
@@ -481,8 +481,8 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
             .newLayout           = vk::ImageLayout::ePresentSrcKHR,
             .srcQueueFamilyIndex = need_release ? _device->queue_graphics().family_index : VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = need_release ? _device->queue_present().family_index : VK_QUEUE_FAMILY_IGNORED,
-            .image               = _swapchain->vkimage(swapchain_image_index),
-            .subresourceRange    = _swapchain->subresource_range(),
+            .image               = _swapchain->get_image(swapchain_image_index),
+            .subresourceRange    = _swapchain->get_image_subresource_range(),
     };
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
                                    vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {}, {release_barrier});
@@ -505,8 +505,8 @@ void MSAA::uniform_update()
             .model = glm::rotate(glm::mat4(1.f), time * glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f)),
             .view  = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f)),
             .proj  = glm::perspective(glm::radians(45.f),
-                                      static_cast<float>(_swapchain->extent_get().width)
-                                              / static_cast<float>(_swapchain->extent_get().height),
+                                      static_cast<float>(_swapchain->get_extent().width)
+                                              / static_cast<float>(_swapchain->get_extent().height),
                                       0.1f, 10.f),
     };
     /* glm 是为 OpenGL 设计的，Vulkan 的坐标系和 OpenGL 存在差异 */

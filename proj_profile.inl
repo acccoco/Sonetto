@@ -6,22 +6,27 @@
 #include <string>
 
 
-inline std::string ASSETS(const std::string &obj)
+const int32_t WINDOW_WIDTH  = 800;
+const int32_t WINDOW_HEIGHT = 800;
+
+
+
+inline std::string ASSETS(const std::string& obj)
 {
     return "${PROJ_ASSETS_DIR}/" + obj;
 }
 
-inline std::string TEXTURE(const std::string &tex)
+inline std::string TEXTURE(const std::string& tex)
 {
     return "${PROJ_ASSETS_DIR}/textures/" + tex;
 }
 
-inline std::string MODEL(const std::string &model)
+inline std::string MODEL(const std::string& model)
 {
     return "${PROJ_ASSETS_DIR}/model/" + model;
 }
 
-inline std::string SHADER(const std::string &shader)
+inline std::string SHADER(const std::string& shader)
 {
     return "${PROJ_SHADER_DIR}/" + shader;
 }

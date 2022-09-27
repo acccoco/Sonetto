@@ -2,8 +2,10 @@
 #include <iostream>
 #include <utility>
 #include <random>
-#include "vk_common.hpp"
+#include "vk/vk_common.hpp"
 #include "window.hpp"
+#include "utils/timer.hpp"
+#include "proj_profile.hpp"
 
 
 namespace Hiss
@@ -34,15 +36,11 @@ protected:
     virtual void next_frame() = 0;
 
 
-    [[nodiscard]] std::string app_name_get() const { return _app_name; }
-
-    /**
-     * 标准正态分布
-     */
-    static float rand_norm();
+    [[nodiscard]] std::string app_name() const { return _app_name; }
 
 
 private:
+    /// 初始化 logger 与 validation 的 logger
     void logger_init();
 
 
@@ -50,18 +48,14 @@ private:
 
 
 protected:
-    const bool debug = true;
-
     std::shared_ptr<spdlog::logger> _logger;
     std::shared_ptr<spdlog::logger> _validation_logger;
-    Hiss::Window*                   _window;
+    Hiss::Window*                   _window = {nullptr};
 
-    std::chrono::steady_clock::time_point _pre_tick;
+    Timer _timer{};
 
 private:
     const std::string _app_name;
-    const int32_t     WINDOW_INIT_WIDTH  = 800;
-    const int32_t     WINDOW_INIT_HEIGHT = 800;
 };
 
 }    // namespace Hiss
