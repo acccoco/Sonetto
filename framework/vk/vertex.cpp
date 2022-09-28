@@ -40,14 +40,14 @@ Hiss::IndexBuffer::IndexBuffer(Hiss::Device& device, const std::vector<element_t
       _index_cnt(indices.size())
 {
     /* index data to stage buffer */
-    Hiss::Buffer stage_buffer{device, _buffer_size, vk::BufferUsageFlagBits::eTransferSrc,
+    Hiss::Buffer stage_buffer{device, buffer_size(), vk::BufferUsageFlagBits::eTransferSrc,
                               vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent};
-    stage_buffer.memory_copy_in(reinterpret_cast<const void*>(indices.data()), static_cast<size_t>(_buffer_size));
+    stage_buffer.memory_copy_in(reinterpret_cast<const void*>(indices.data()), static_cast<size_t>(buffer_size()));
 
 
     /* stage buffer to vertex buffer */
-    OneTimeCommand command_buffer{device, device.command_pool_graphics()};
-    command_buffer().copyBuffer(stage_buffer.vkbuffer(), _buffer, {vk::BufferCopy{.size = _buffer_size}});
+    OneTimeCommand command_buffer{device, device.command_pool()};
+    command_buffer().copyBuffer(stage_buffer.vkbuffer(), _buffer, {vk::BufferCopy{.size = buffer_size()}});
     command_buffer.exec();
 }
 

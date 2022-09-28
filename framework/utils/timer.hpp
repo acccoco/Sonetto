@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 #include <utility>
+#include "utils/tools.hpp"
 
 
 namespace Hiss
@@ -9,17 +10,24 @@ namespace Hiss
 class Timer
 {
 public:
-    /// 距离上一次 tick 过去了多长时间，单位 ms
-    double tick_ms()
+    void tick()
     {
-        auto now      = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration<double, std::chrono::milliseconds::period>(now - _pre_tick);
-        _pre_tick     = now;
-        return duration.count();
+        auto now    = std::chrono::high_resolution_clock::now();
+        duration_ms = std::chrono::duration<double, std::chrono::milliseconds::period>(now - _pre_tick).count();
+        _pre_tick   = now;
     }
 
     /// 开始运行
-    void start() { this->_pre_tick = std::chrono::high_resolution_clock::now(); }
+    void start()
+    {
+        this->_pre_tick = std::chrono::high_resolution_clock::now();
+    }
+
+
+public:
+    /// 距离上一次 tick 过去了多长时间，单位 ms
+    Prop<double, Timer> duration_ms{};
+
 
 private:
     std::chrono::steady_clock::time_point _pre_tick = {};

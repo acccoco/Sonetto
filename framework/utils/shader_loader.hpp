@@ -9,7 +9,7 @@ namespace Hiss
 class ShaderLoader
 {
 public:
-    explicit ShaderLoader(const Hiss::Device& device)
+    explicit ShaderLoader(Hiss::Device& device)
         : _device(device)
     {}
 
@@ -41,7 +41,7 @@ public:
     }
 
 private:
-    const Hiss::Device&           _device;
+    Hiss::Device&                 _device;
     std::vector<vk::ShaderModule> _shader_modules{};
 };
 }    // namespace Hiss

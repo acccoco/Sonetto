@@ -16,7 +16,7 @@ class Device;
 class FencePool
 {
 public:
-    explicit FencePool(const Device& deivce)
+    explicit FencePool(Device& deivce)
         : _device(deivce)
     {}
     ~FencePool();
@@ -33,7 +33,7 @@ public:
     void revert(const std::vector<vk::Fence>& fences);
 
 private:
-    const Device&          _device;
+    Device&          _device;
     std::vector<vk::Fence> _available_fences = {};    // fence 的状态：signaled
     std::vector<vk::Fence> _all_fences       = {};
 };

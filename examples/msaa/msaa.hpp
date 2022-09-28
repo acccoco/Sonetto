@@ -1,6 +1,6 @@
 #pragma once
 #include <array>
-#include "vk_application.hpp"
+#include "application.hpp"
 #include "vk/pipeline.hpp"
 #include "proj_profile.hpp"
 #include "vk/model.hpp"
@@ -14,11 +14,11 @@
  * - framebuffer 需要有 3 个 attachment：color，depth，resolve
  * - color 和 depth attachment 都需要多个 sample
  */
-class MSAA : public Hiss::VkApplication
+class MSAA : public Hiss::Application
 {
 public:
     MSAA()
-        : Hiss::VkApplication("msaa")
+        : Hiss::Application("msaa")
     {}
     ~MSAA() override = default;
 

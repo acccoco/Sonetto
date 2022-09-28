@@ -18,34 +18,79 @@
 
 /**
  * 只读属性
- * @tparam t1 值的类型
- * @tparam t2 可访问该属性的类型
  */
-template<typename t1, typename t2>
+template<typename value_t, typename frient_t>
 class Prop
 {
 public:
-    friend t2;
+    friend frient_t;
     Prop() = default;
-    explicit Prop(t1 value)
+    explicit Prop(value_t value)
         : _value(value)
     {}
 
-    [[nodiscard]] t1 get() const
+    // NOTE 引用可以提高效率，const 可以防止被修改
+    [[nodiscard]] inline const value_t& get() const
+    {
+        return this->_value;
+    }
+
+    inline const value_t& operator()() const
     {
         return this->_value;
     }
 
 private:
-    t1 _value;
+    inline void operator=(value_t new_value)
+    {
+        this->_value = new_value;
+    }
+
+
+    value_t _value;
+};
+
+
+/**
+ * 指针的只读属性
+ * 外部可以获取指针指向对象的引用
+ */
+template<typename value_t, typename frient_t>
+class PropPtr
+{
+public:
+    friend frient_t;
+    PropPtr() = default;
+    explicit PropPtr(value_t* ptr)
+        : _ptr(ptr)
+    {}
+
+    inline value_t& operator()() const
+    {
+        return *this->_ptr;
+    }
+
+    inline value_t* get_ptr() const
+    {
+        return this->_ptr;
+    }
+
+private:
+    inline void operator=(value_t* new_ptr)
+    {
+        this->_ptr = new_ptr;
+    }
+
+    value_t* _ptr;
 };
 
 
 namespace Hiss
 {
+
+// 用于读取 image
 class Stbi_8Bit_RAII
 {
-
 public:
     /**
      * 每个 pixel 由 N 个 8-bit component 组成，
@@ -57,29 +102,12 @@ public:
     explicit Stbi_8Bit_RAII(const std::string& file_path, int desired_channels = 0, bool flip_vertical = false);
     ~Stbi_8Bit_RAII();
 
-    [[nodiscard]] int width() const
-    {
-        return _width;
-    }
-    [[nodiscard]] int height() const
-    {
-        return _height;
-    }
-    [[nodiscard]] int channels_in_file() const
-    {
-        return _channels;
-    }
-    [[nodiscard]] stbi_uc* data() const
-    {
-        return _data;
-    }
 
-
-private:
-    stbi_uc* _data     = nullptr;
-    int      _width    = 0;
-    int      _height   = 0;
-    int      _channels = 0;    // image 的实际 component 数
+public:
+    Prop<int, Stbi_8Bit_RAII>      width{0};
+    Prop<int, Stbi_8Bit_RAII>      height{0};
+    Prop<int, Stbi_8Bit_RAII>      channels_in_file{0};
+    Prop<stbi_uc*, Stbi_8Bit_RAII> data{nullptr};
 };
 
 
@@ -90,6 +118,7 @@ std::vector<char> read_file(const std::string& filename);
 }    // namespace Hiss
 
 
+// vector 中是否存在某个元素
 template<typename T>
 inline bool exist(const std::vector<T>& arr, const T& value)
 {

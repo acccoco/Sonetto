@@ -16,22 +16,28 @@ struct Queue;
 class CommandPool
 {
 public:
-    CommandPool(Device& device, const Queue& queue);
+    CommandPool(Device& device, Queue& queue);
     ~CommandPool();
 
-    [[nodiscard]] vk::CommandPool pool_get() const { return _pool; }
-    [[nodiscard]] const Queue&    queue_get() const { return _queue; }
+    [[nodiscard]] vk::CommandPool pool_get() const
+    {
+        return _pool;
+    }
+    [[nodiscard]] const Queue& queue_get() const
+    {
+        return _queue;
+    }
 
     std::vector<vk::CommandBuffer> command_buffer_create(uint32_t count = 1);
 
     /**
      * 创建一个 command buffer，并注册用于 debug 的 object name
      */
-    vk::CommandBuffer command_buffer_create(std::string name);
+    vk::CommandBuffer command_buffer_create(const std::string& name);
 
 private:
-    const Device&   _device;
-    const Queue&    _queue;
+    Device&   _device;
+    Queue&    _queue;
     vk::CommandPool _pool = VK_NULL_HANDLE;
 };
 
@@ -49,12 +55,15 @@ public:
     OneTimeCommand(Device& device, CommandPool& pool);
     ~OneTimeCommand();
 
-    vk::CommandBuffer& operator()() { return _command_buffer; }
-    void               exec();
+    vk::CommandBuffer& operator()()
+    {
+        return _command_buffer;
+    }
+    void exec();
 
 private:
-    const Device&      _device;
-    const CommandPool& _pool;
+    Device&      _device;
+    CommandPool& _pool;
     vk::CommandBuffer  _command_buffer;
     bool               _used{false};
 };

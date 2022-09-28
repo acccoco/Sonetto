@@ -13,7 +13,7 @@ Hiss::Instance::Instance(const std::string&                          app_name,
             .pEngineName        = "Hiss 🥵 Engine",
             .engineVersion      = VK_MAKE_VERSION(5, 1, 4),
 
-            .apiVersion = VK_VERSION,
+            .apiVersion = APP_VK_VERSION,
     };
 
 

@@ -56,7 +56,7 @@ void Hiss::Texture::image_create(bool mipmap)
     if (_mip_levels > 1)
     {
         if (!_image->mipmap_generate(vk::ImageAspectFlagBits::eColor))
-            _device.logger().warn("the format is not supported to be linear filtered");
+            spdlog::warn("the format is not supported to be linear filtered");
     }
     else
     {
@@ -80,7 +80,7 @@ void Hiss::Texture::sampler_create()
             .mipLodBias = 0.f,
 
             .anisotropyEnable = VK_TRUE,
-            .maxAnisotropy    = _device.gpu_get().properties().limits.maxSamplerAnisotropy,
+            .maxAnisotropy    = _device.get_gpu().properties().limits.maxSamplerAnisotropy,
 
             // 在 PCF shadow map 中会用到
             .compareEnable = VK_FALSE,

@@ -1,30 +1,29 @@
 #include "hello_triangle.hpp"
+#include "run.hpp"
+#include "vk/vk_common.hpp"
 
 
-APP_RUN(HelloTriangle)
-
+RUN(HelloTriangle);
 
 void HelloTriangle::prepare()
 {
-    Hiss::VkApplication::prepare();
-
-    _logger->info("[HelloTriangle] prepare");
+    spdlog::info("[HelloTriangle] prepare");
 
     // 初始化各种字段
     init_pipeline();
-    _vertex_buffer     = std::make_shared<Hiss::VertexBuffer<Hiss::Vertex2DColor>>(*_device, vertices);
-    _index_buffer      = std::make_shared<Hiss::IndexBuffer>(*_device, indices);
-    depth_image_2      = Hiss::Image::create_depth_attach(*_device, get_extent(), "depth_image");
-    depth_image_view_2 = new Hiss::ImageView(*depth_image_2, vk::ImageAspectFlagBits::eDepth, 0, 1);
+    // _vertex_buffer     = std::make_shared<Hiss::VertexBuffer<Hiss::Vertex2DColor>>(app.device(), vertices);
+    // _index_buffer      = std::make_shared<Hiss::IndexBuffer>(app.device(), indices);
+    _index_buffer2   = new Hiss::IndexBuffer2(app.device(), app.allocator, indices);
+    _vertex_buffer2  = new Hiss::VertexBuffer2<Hiss::Vertex2DColor>(app.device(), app.allocator, vertices);
+    depth_image      = Hiss::Image::create_depth_attach(app.device(), app.get_extent(), "depth_image");
+    depth_image_view = new Hiss::ImageView(*depth_image, vk::ImageAspectFlagBits::eDepth, 0, 1);
 
     // 初始化 per frame payload
-    _payloads.reserve(_frame_manager->frames.get().size());
-    for (auto frame: _frame_manager->frames.get())
+    _payloads.reserve(app.frame_manager().frames.get().size());
+    for (auto frame: app.frame_manager().frames.get())
     {
         FramePayload payload;
-        payload.command_buffer = _device->command_pool_graphics().command_buffer_create(1).front();
-        payload.framebuffer    = _device->create_framebuffer(
-                _simple_render_pass, {frame->image_view.get(), depth_image_view_2->view_get()}, get_extent());
+        payload.command_buffer    = app.device().command_pool().command_buffer_create(1).front();
         payload.color_attach_info = vk::RenderingAttachmentInfo{
                 .imageView   = frame->image_view.get(),
                 .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
@@ -33,7 +32,7 @@ void HelloTriangle::prepare()
                 .clearValue  = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.2f, 0.2f, 0.2f, 1.f}}},
         };
         payload.depth_attach_info = vk::RenderingAttachmentInfo{
-                .imageView   = _depth_image_view->view_get(),
+                .imageView   = depth_image_view->view_get(),
                 .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
                 .loadOp      = vk::AttachmentLoadOp::eClear,
                 .storeOp     = vk::AttachmentStoreOp::eDontCare,
@@ -42,35 +41,35 @@ void HelloTriangle::prepare()
         _payloads.push_back(payload);
     }
 
-    _logger->info("[hello] prepare end");
+    spdlog::info("[hello] prepare end");
 }
 
 
 void HelloTriangle::init_pipeline()
 {
-    auto vertex_shader_module   = _shader_loader->load(shader_vert_path, vk::ShaderStageFlagBits::eVertex);
-    auto fragment_shader_module = _shader_loader->load(shader_frag_path, vk::ShaderStageFlagBits::eFragment);
+    auto vertex_shader_module   = app.shader_loader().load(shader_vert_path, vk::ShaderStageFlagBits::eVertex);
+    auto fragment_shader_module = app.shader_loader().load(shader_frag_path, vk::ShaderStageFlagBits::eFragment);
     _pipeline_template.shader_stage_add(vertex_shader_module);
     _pipeline_template.shader_stage_add(fragment_shader_module);
 
     _pipeline_template.vertex_input_binding_set(Hiss::Vertex2DColor::binding_description_get(0));
     _pipeline_template.vertex_input_attribute_set(Hiss::Vertex2DColor::attribute_description_get(0));
 
-    _pipeline_template.viewport_set(get_extent());
+    _pipeline_template.viewport_set(app.get_extent());
 
-    _pipeline_layout = _device->vkdevice().createPipelineLayout({});
+    _pipeline_layout = app.device().vkdevice().createPipelineLayout({});
     _pipeline_template.pipeline_layout_set(_pipeline_layout);
 
-    // FIXME
-    _pipeline_template.depth_format  = _device->gpu_get().depth_stencil_format.get();
-    _pipeline_template.color_formats = {get_color_format()};
+    // FIXME 这是 dynamic rendering
+    _pipeline_template.depth_format  = app.device().get_gpu().depth_stencil_format.get();
+    _pipeline_template.color_formats = {app.get_color_format()};
 
-    _pipeline = _pipeline_template.generate(*_device, _simple_render_pass, 0);
+    _pipeline = _pipeline_template.generate(app.device(), VK_NULL_HANDLE, 0);
 }
 
 
 void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const FramePayload& payload,
-                                   const Hiss::Frame2& frame)
+                                   const Hiss::Frame& frame)
 {
     command_buffer.begin(vk::CommandBufferBeginInfo{});
 
@@ -83,8 +82,8 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
                                            .dstAccessMask    = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
                                            .oldLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
                                            .newLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                           .image            = depth_image_2->vkimage(),
-                                           .subresourceRange = depth_image_view_2->subresource_range(),
+                                           .image            = depth_image->vkimage(),
+                                           .subresourceRange = depth_image_view->subresource_range(),
                                    }});
 
     // color attachment layout transfer: undefined -> present （无需保留之前的内容）
@@ -101,7 +100,7 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
 
     /* 绘制过程 */
     command_buffer.beginRendering(vk::RenderingInfo{
-            .renderArea           = {.offset = {0, 0}, .extent = get_extent()},
+            .renderArea           = {.offset = {0, 0}, .extent = app.get_extent()},
             .layerCount           = 1,
             .colorAttachmentCount = 1,
             .pColorAttachments    = &payload.color_attach_info,
@@ -109,8 +108,8 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
     });
 
 
-    command_buffer.bindVertexBuffers(0, {_vertex_buffer->vkbuffer()}, {0});
-    command_buffer.bindIndexBuffer(_index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
+    command_buffer.bindVertexBuffers(0, {_vertex_buffer2->buffer()}, {0});
+    command_buffer.bindIndexBuffer(_index_buffer2->buffer(), 0, vk::IndexType::eUint32);
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
     command_buffer.drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -125,7 +124,7 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
                                            .oldLayout        = vk::ImageLayout::eColorAttachmentOptimal,
                                            .newLayout        = vk::ImageLayout::ePresentSrcKHR,
                                            .image            = frame.image.get(),
-                                           .subresourceRange = _swapchain->get_image_subresource_range(),
+                                           .subresourceRange = Hiss::COLOR_SUBRESOURCE_RANGE,
                                    }});
 
 
@@ -133,23 +132,20 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
 }
 
 
-void HelloTriangle::update(double delte_time) noexcept
+void HelloTriangle::update() noexcept
 {
-    Hiss::VkApplication::update(delte_time);
-
-    auto  frame   = _frame_manager->acquire_frame();
-    auto& payload = _payloads[frame->frame_id.get()];
+    auto& payload = _payloads[app.current_frame().frame_id.get()];
     // prepare_frame();
 
     /* draw */
     vk::CommandBuffer command_buffer = payload.command_buffer;
-    record_command(command_buffer, payload, *frame);
+    record_command(command_buffer, payload, app.current_frame());
 
     std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
-    std::array<vk::Semaphore, 1>          wait_semaphores   = {frame->acquire_semaphore.get()};
-    std::array<vk::Semaphore, 1>          signal_semaphores = {frame->submit_semaphore.get()};
+    std::array<vk::Semaphore, 1>          wait_semaphores   = {app.current_frame().acquire_semaphore.get()};
+    std::array<vk::Semaphore, 1>          signal_semaphores = {app.current_frame().submit_semaphore.get()};
 
-    _device->queue_graphics().queue.submit(
+    app.device().queue().queue.submit(
             {
                     vk::SubmitInfo{.waitSemaphoreCount   = static_cast<uint32_t>(wait_semaphores.size()),
                                    .pWaitSemaphores      = wait_semaphores.data(),
@@ -159,37 +155,29 @@ void HelloTriangle::update(double delte_time) noexcept
                                    .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
                                    .pSignalSemaphores    = signal_semaphores.data()},
             },
-            frame->insert_fence());
-
-    _frame_manager->submit_frame(frame);
+            app.current_frame().insert_fence());
 }
 
 
 void HelloTriangle::resize()
 {
-    VkApplication::resize();
-    _logger->info("[HelloTriangle] resize");
-
     // pipeline
-    _device->vkdevice().destroy(_pipeline);
-    _pipeline_template.viewport_set(_swapchain->get_extent());
-    _pipeline = _pipeline_template.generate(*_device, _simple_render_pass, 0);
+    app.device().vkdevice().destroy(_pipeline);
+    _pipeline_template.viewport_set(app.get_extent());
+    _pipeline = _pipeline_template.generate(app.device(), VK_NULL_HANDLE, 0);
 
     // depth attachmetn
-    DELETE(depth_image_2);
-    DELETE(depth_image_view_2);
-    depth_image_2      = Hiss::Image::create_depth_attach(*_device, get_extent(), "depth_image");
-    depth_image_view_2 = new Hiss::ImageView(*depth_image_2, vk::ImageAspectFlagBits::eDepth, 0, 1);
+    DELETE(depth_image);
+    DELETE(depth_image_view);
+    depth_image      = Hiss::Image::create_depth_attach(app.device(), app.get_extent(), "depth_image");
+    depth_image_view = new Hiss::ImageView(*depth_image, vk::ImageAspectFlagBits::eDepth, 0, 1);
 
     // payload
-    for (auto frame: _frame_manager->frames.get())
+    for (auto frame: app.frame_manager().frames.get())
     {
         // framebuffer
-        auto& payload = _payloads[frame->frame_id.get()];
-        _device->vkdevice().destroy(payload.framebuffer);
-        payload.framebuffer = _device->create_framebuffer(
-                _simple_render_pass, {frame->image_view.get(), depth_image_view_2->view_get()}, get_extent());
-        payload.depth_attach_info.imageView = depth_image_view_2->view_get();
+        auto& payload                       = _payloads[frame->frame_id.get()];
+        payload.depth_attach_info.imageView = depth_image_view->view_get();
         payload.color_attach_info.imageView = frame->image_view.get();
     }
 }
@@ -197,21 +185,17 @@ void HelloTriangle::resize()
 
 void HelloTriangle::clean()
 {
-    _logger->info("[HelloTriangle] clean");
+    spdlog::info("[HelloTriangle] clean");
 
     // 清理 payload
     for (auto& payload: _payloads)
-    {
-        _device->vkdevice().destroy(payload.framebuffer);
-    }
+    {}
 
     // 清理其他的
-    DELETE(depth_image_2);
-    DELETE(depth_image_view_2);
-    _vertex_buffer = nullptr;
-    _index_buffer  = nullptr;
-    _device->vkdevice().destroy(_pipeline);
-    _device->vkdevice().destroy(_pipeline_layout);
-
-    VkApplication::clean();
+    DELETE(depth_image);
+    DELETE(depth_image_view);
+    delete _vertex_buffer2;
+    delete _index_buffer2;
+    app.device().vkdevice().destroy(_pipeline);
+    app.device().vkdevice().destroy(_pipeline_layout);
 }

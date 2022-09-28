@@ -14,7 +14,7 @@ namespace Hiss
 class SemaphorePool
 {
 public:
-    explicit SemaphorePool(const Device& device)
+    explicit SemaphorePool(Device& device)
         : _device(device)
     {}
 
@@ -45,7 +45,7 @@ public:
 
 
 private:
-    const Device& _device;
+    Device& _device;
 
     std::vector<vk::Semaphore> _available_semaphores = {};
     std::vector<vk::Semaphore> _all_semaphores       = {};

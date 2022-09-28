@@ -22,7 +22,7 @@ vk::Pipeline Hiss::GraphicsPipelineTemplate::generate(const Device& device, vk::
             .pDynamicStates    = _dynamic_states.data(),
     };
 
-    // FIXME
+    // FIXME 适配 dynamic rendering
     vk::PipelineRenderingCreateInfo attach_info = {
             .colorAttachmentCount    = static_cast<uint32_t>(color_formats.size()),
             .pColorAttachmentFormats = color_formats.data(),

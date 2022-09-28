@@ -12,7 +12,7 @@ public:
     ~Instance();
 
 
-    vk::Instance                      handle_get() { return _instance; }
+    vk::Instance vkinstance() { return _instance; }
     std::optional<vk::PhysicalDevice> gpu_pick(vk::SurfaceKHR surface);
 
 private:

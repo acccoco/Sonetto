@@ -62,14 +62,14 @@ public:
           _vertex_cnt(vertices.size())
     {
         /* vertex data to stage buffer */
-        Hiss::Buffer stage_buffer{device, _buffer_size, vk::BufferUsageFlagBits::eTransferSrc,
+        Hiss::Buffer stage_buffer{device, buffer_size(), vk::BufferUsageFlagBits::eTransferSrc,
                                   vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent};
-        stage_buffer.memory_copy_in(reinterpret_cast<const void*>(vertices.data()), static_cast<size_t>(_buffer_size));
+        stage_buffer.memory_copy_in(reinterpret_cast<const void*>(vertices.data()), static_cast<size_t>(buffer_size()));
 
 
         /* stage buffer to vertex buffer */
-        OneTimeCommand command_buffer{device, device.command_pool_graphics()};
-        command_buffer().copyBuffer(stage_buffer.vkbuffer(), _buffer, {vk::BufferCopy{.size = _buffer_size}});
+        OneTimeCommand command_buffer{device, device.command_pool()};
+        command_buffer().copyBuffer(stage_buffer.vkbuffer(), _buffer, {vk::BufferCopy{.size = buffer_size()}});
         command_buffer.exec();
     }
 
@@ -92,6 +92,57 @@ public:
 
 private:
     size_t _index_cnt = 0;
+};
+
+
+class IndexBuffer2 : public DeviceBuffer
+{
+public:
+    IndexBuffer2(Device& device, VmaAllocator allocator, const std::vector<uint32_t>& indices)
+        : DeviceBuffer(allocator, sizeof(uint32_t) * indices.size(),
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
+          index_num(indices.size())
+    {
+        // 创建 stage buffer，向其中写入数据
+        StageBuffer stage_buffer(allocator, size());
+        stage_buffer.mem_copy(indices.data(), size());
+
+
+        // 立即向 indices 中写入
+        OneTimeCommand command_buffer{device, device.command_pool()};
+        command_buffer().copyBuffer(stage_buffer.buffer(), buffer(), {vk::BufferCopy{.size = size()}});
+        command_buffer.exec();
+    }
+
+
+public:
+    const size_t index_num;
+};
+
+
+template<typename VertexType>
+class VertexBuffer2 : public DeviceBuffer
+{
+public:
+    VertexBuffer2(Device& device, VmaAllocator allocator, const std::vector<VertexType>& vertices)
+        : DeviceBuffer(allocator, sizeof(VertexType) * vertices.size(),
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
+          vertex_num(vertices.size())
+    {
+        // 创建 stage buffer，向其中写入数据
+        StageBuffer stage_buffer(allocator, size());
+        stage_buffer.mem_copy(vertices.data(), size());
+
+
+        // 立即向 vertices bufffer 中写入
+        OneTimeCommand command_buffer{device, device.command_pool()};
+        command_buffer().copyBuffer(stage_buffer.buffer(), buffer(), {vk::BufferCopy{.size = size()}});
+        command_buffer.exec();
+    }
+
+
+public:
+    const size_t vertex_num;
 };
 
 }    // namespace Hiss

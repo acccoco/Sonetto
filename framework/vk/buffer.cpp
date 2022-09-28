@@ -7,8 +7,8 @@
  */
 Hiss::Buffer::Buffer(Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
                      vk::MemoryPropertyFlags memory_properties)
-    : _device(device),
-      _buffer_size(size)
+    : buffer_size(size),
+      _device(device)
 {
     _buffer = device.vkdevice().createBuffer(vk::BufferCreateInfo{
             .size        = size,
@@ -17,7 +17,7 @@ Hiss::Buffer::Buffer(Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageF
     });
 
     vk::MemoryRequirements memory_require = _device.vkdevice().getBufferMemoryRequirements(_buffer);
-    _memory                               = _device.memory_allocate(memory_require, memory_properties);
+    _memory                               = _device.allocate_memory(memory_require, memory_properties);
     _device.vkdevice().bindBufferMemory(_buffer, _memory, 0);
 }
 
@@ -56,7 +56,7 @@ void* Hiss::Buffer::memory_map()
 {
     if (!_map)
     {
-        _data = _device.vkdevice().mapMemory(_memory, 0, _buffer_size, {});
+        _data = _device.vkdevice().mapMemory(_memory, 0, buffer_size(), {});
         _map  = true;
     }
     return _data;

@@ -1,84 +1,90 @@
 #pragma once
-#include <iostream>
-#include <utility>
-#include <random>
-#include "vk/vk_common.hpp"
-#include "window.hpp"
+#include "utils/shader_loader.hpp"
 #include "utils/timer.hpp"
-#include "proj_profile.hpp"
+#include "vk/device.hpp"
+#include "vk/instance.hpp"
+#include "vk/swapchain.hpp"
+#include "vk/vk_common.hpp"
+#include "frame.hpp"
 
 
 namespace Hiss
 {
-
-/**
- * 入口函数：run
- * 调用关系：run -> { prepare, update, resize, clean, wait_idle }
- */
 class Application
 {
 public:
-    explicit Application(std::string app_name)
-        : _app_name(std::move(app_name))
+    explicit Application(const std::string& app_name)
+        : name(app_name)
     {}
+    ~Application() = default;
 
-    virtual ~Application() = default;
+    // 特殊接口 ==========================================
 
-    void run();
+    void prepare();
+    void resize();
+    void perupdate() noexcept;
+    void postupdate() noexcept;
+    void clean();
+    void wait_idle() const
+    {
+        device().vkdevice().waitIdle();
+    }
+
+    [[nodiscard]] bool should_close() const
+    {
+        return _window->should_close();
+    }
+
+    [[nodiscard]] bool should_resize() const
+    {
+        return _window->has_resized();
+    }
+
+    // 各种属性 ============================================
 
 
-protected:
-    virtual void prepare();
-    virtual void update(double delte_time) noexcept;
-    virtual void resize();
-    virtual void clean();
-    virtual void wait_idle()  = 0;    // 等待 gpu 执行完现有任务
-    virtual void next_frame() = 0;
+    [[nodiscard]] vk::Extent2D get_extent() const
+    {
+        return this->_swapchain->present_extent.get();
+    }
 
 
-    [[nodiscard]] std::string app_name() const { return _app_name; }
+    [[nodiscard]] vk::Format get_color_format() const
+    {
+        return this->_swapchain->get_color_format();
+    }
 
 
 private:
-    /// 初始化 logger 与 validation 的 logger
-    void logger_init();
+    void init_vma();
 
 
     // members =======================================================
 
+public:
+    Prop<vk::Format, Application>  depth_format{};
+    Prop<std::string, Application> name{};
+    Prop<Timer, Application>       timer{};
+
+    PropPtr<Device, Application>       device{nullptr};
+    PropPtr<FrameManager, Application> frame_manager{nullptr};
+    PropPtr<ShaderLoader, Application> shader_loader{nullptr};
+    PropPtr<Frame, Application>        current_frame{nullptr};
+
+
+    VmaAllocator allocator{};
+
 
 protected:
-    std::shared_ptr<spdlog::logger> _logger;
-    std::shared_ptr<spdlog::logger> _validation_logger;
-    Hiss::Window*                   _window = {nullptr};
+    Instance*      _instance        = nullptr;
+    vk::SurfaceKHR _surface         = nullptr;
+    GPU*           _physical_device = nullptr;
+    Swapchain*     _swapchain       = nullptr;
 
-    Timer _timer{};
 
 private:
-    const std::string _app_name;
+    vk::DebugUtilsMessengerEXT _debug_messenger = VK_NULL_HANDLE;
+
+    Window* _window = nullptr;
 };
-
 }    // namespace Hiss
-
-
-template<typename app_t>
-int runner()
-{
-    try
-    {
-        app_t app;
-        app.run();
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "exception: " << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-
-#define APP_RUN(app_t)                                                                                                 \
-    int main(int argc, char** argv)                                                                                    \
-    {                                                                                                                  \
-        return runner<app_t>();                                                                                        \
-    }

@@ -1,4 +1,5 @@
 #include "msaa.hpp"
+#include "run.hpp"
 
 
 APP_RUN(MSAA)
@@ -6,12 +7,12 @@ APP_RUN(MSAA)
 
 void MSAA::prepare()
 {
-    VkApplication::prepare();
-    _logger->info("[MSAA] prepare");
+    Application::prepare();
+    spdlog::info("[MSAA] prepare");
 
 
     _sample = _physical_device->max_sample_cnt();
-    _logger->info("[MSAA] max sample count: {}", vk::to_string(_sample));
+    spdlog::info("[MSAA] max sample count: {}", vk::to_string(_sample));
 
 
     /* assets */
@@ -31,7 +32,7 @@ void MSAA::prepare()
 
 void MSAA::clean()
 {
-    _logger->info("[MSAA] clean");
+    spdlog::info("[MSAA] clean");
 
     /* assets */
     DELETE(_mesh);
@@ -46,14 +47,14 @@ void MSAA::clean()
     render_pass_clean();
 
 
-    VkApplication::clean();
+    Application::clean();
 }
 
 
 void MSAA::resize()
 {
-    VkApplication::resize();
-    _logger->info("[MSAA] resize");
+    Application::resize();
+    spdlog::info("[MSAA] on_resize");
 
 
     msaa_framebuffer_clean();
@@ -63,7 +64,7 @@ void MSAA::resize()
 
 void MSAA::msaa_framebuffer_prepare()
 {
-    _logger->info("[MSAA] create framebuffers");
+    spdlog::info("[MSAA] create framebuffers");
 
 
     /* color image and image view */
@@ -108,7 +109,7 @@ void MSAA::msaa_framebuffer_prepare()
 
 void MSAA::msaa_framebuffer_clean()
 {
-    _logger->info("[MSAA] framebuffers clean");
+    spdlog::info("[MSAA] framebuffers clean");
 
     for (auto& framebuffer: _msaa_framebuffers)
         DELETE(framebuffer);
@@ -122,7 +123,7 @@ void MSAA::msaa_framebuffer_clean()
 
 void MSAA::render_pass_prepare()
 {
-    _logger->info("[MSAA] render pass prepare");
+    spdlog::info("[MSAA] render pass prepare");
 
 
     /* attachments */
@@ -193,14 +194,14 @@ void MSAA::render_pass_prepare()
 
 void MSAA::render_pass_clean()
 {
-    _logger->info("[MSAA] render pass clean");
+    spdlog::info("[MSAA] render pass clean");
     _device->vkdevice().destroy(_msaa_renderpass);
 }
 
 
 void MSAA::pipeline_clean()
 {
-    _logger->info("[MSAA] pipeline clean");
+    spdlog::info("[MSAA] pipeline clean");
     _device->vkdevice().destroy(_pipeline_layout);
     _device->vkdevice().destroy(_pipeline);
 }
@@ -208,7 +209,7 @@ void MSAA::pipeline_clean()
 
 void MSAA::pipeline_prepare()
 {
-    _logger->info("[MSAA] pipeline create");
+    spdlog::info("[MSAA] pipeline create");
 
     _pipeline_state.shader_stage_add(_shader_loader->load(vert_shader_path, vk::ShaderStageFlagBits::eVertex));
     _pipeline_state.shader_stage_add(_shader_loader->load(frag_shader_path, vk::ShaderStageFlagBits::eFragment));
@@ -237,7 +238,7 @@ void MSAA::pipeline_prepare()
 
 void MSAA::update(double delte_time) noexcept
 {
-    Hiss::VkApplication::update(delte_time);
+    Hiss::Application::perupdate(delte_time);
     prepare_frame();
 
 
@@ -252,7 +253,7 @@ void MSAA::update(double delte_time) noexcept
     std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
     std::array<vk::Semaphore, 1>          wait_semaphores   = {current_frame().semaphore_swapchain_acquire()};
     std::array<vk::Semaphore, 1>          signal_semaphores = {current_frame().semaphore_render_complete()};
-    _device->queue_graphics().queue.submit(
+    _device->queue().queue.submit(
             {vk::SubmitInfo{
                     .waitSemaphoreCount   = static_cast<uint32_t>(wait_semaphores.size()),
                     .pWaitSemaphores      = wait_semaphores.data(),
@@ -272,7 +273,7 @@ void MSAA::update(double delte_time) noexcept
 
 void MSAA::descriptor_set_layout_prepare()
 {
-    _logger->info("[MSAA] descriptor set layout prepare");
+    spdlog::info("[MSAA] descriptor set layout prepare");
 
     /* descriptor set layout */
     std::array<vk::DescriptorSetLayoutBinding, 2> descriptor_bindings = {
@@ -304,7 +305,7 @@ void MSAA::descriptor_set_layout_prepare()
  */
 void MSAA::descriptor_set_prepare()
 {
-    _logger->info("[MSAA] descriptor set prepare");
+    spdlog::info("[MSAA] descriptor set prepare");
 
 
     /* descriptor pool create */
@@ -369,7 +370,7 @@ void MSAA::descriptor_set_prepare()
 
 void MSAA::descriptor_clean()
 {
-    _logger->info("[MSAA] descriptor set clear");
+    spdlog::info("[MSAA] descriptor set clear");
 
     _descriptor_sets.clear();    // 跟随 pool 一起销毁
 
@@ -381,7 +382,7 @@ void MSAA::descriptor_clean()
 
 void MSAA::uniform_buffer_prepare()
 {
-    _logger->info("[MSAA] uniform buffer create");
+    spdlog::info("[MSAA] uniform buffer create");
 
     for (size_t i = 0; i < IN_FLIGHT_CNT; ++i)
     {
@@ -394,7 +395,7 @@ void MSAA::uniform_buffer_prepare()
 
 void MSAA::uniform_buffer_clean()
 {
-    _logger->info("[MSAA] uniform buffer clear");
+    spdlog::info("[MSAA] uniform buffer clear");
 
     for (auto& uniform_buffer: _uniform_buffers)
     {
@@ -474,12 +475,12 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
 
 
     /* resolve attachment: release and layout transition */
-    bool need_release = !Hiss::Queue::is_same_queue_family(_device->queue_present(), _device->queue_graphics());
+    bool need_release = !Hiss::Queue::is_same_queue_family(_device->queue_present(), _device->queue());
     vk::ImageMemoryBarrier release_barrier = {
             .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
             .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-            .srcQueueFamilyIndex = need_release ? _device->queue_graphics().family_index : VK_QUEUE_FAMILY_IGNORED,
+            .srcQueueFamilyIndex = need_release ? _device->queue().family_index : VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = need_release ? _device->queue_present().family_index : VK_QUEUE_FAMILY_IGNORED,
             .image               = _swapchain->get_image(swapchain_image_index),
             .subresourceRange    = _swapchain->get_image_subresource_range(),

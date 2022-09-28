@@ -19,11 +19,15 @@ public:
     Swapchain(Device& device, Window& window, vk::SurfaceKHR surface);
     ~Swapchain();
 
+    static Swapchain* resize(Swapchain* old, Device& device, Window& window, vk::SurfaceKHR surface)
+    {
+        DELETE(old);
+        return new Swapchain(device, window, surface);
+    }
+
     // 得到 swapchain 中 image 支持的 color format
     [[nodiscard]] vk::Format get_color_format() const;
 
-    // 得到 swapchain 的 extent，单位是 pixel
-    [[nodiscard]] vk::Extent2D get_extent() const;
 
     // swapchain 中 image 的数量
     [[nodiscard]] size_t get_image_number() const;
@@ -34,13 +38,6 @@ public:
     // 直接获得某个 image
     [[nodiscard]] vk::Image get_image(uint32_t index) const;
 
-    // image 的 subresource range
-    [[nodiscard]] const vk::ImageSubresourceRange& get_image_subresource_range() const { return _subresource_range; }
-
-    // 发生 resize 时，应该如何反应
-    void resize();
-
-    static Swapchain* resize(Swapchain* old_swapchain);
 
     /**
      * 从 swapchain 中获取 image，用于渲染下一帧
@@ -78,9 +75,13 @@ private:
     // member ========================================================
 
 
+public:
+    // 得到 swapchain 的 extent，单位是 pixel
+    Prop<vk::Extent2D, Swapchain> present_extent = {};
+
 private:
-    const Device& _device;
-    const Window& _window;
+    Device& _device;
+    Window& _window;
 
     vk::SurfaceKHR             _surface        = VK_NULL_HANDLE;
     vk::SwapchainKHR           _swapchain      = VK_NULL_HANDLE;

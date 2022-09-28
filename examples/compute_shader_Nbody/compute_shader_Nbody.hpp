@@ -1,5 +1,5 @@
 #pragma once
-#include <vk_application.hpp>
+#include <application.hpp>
 #include "proj_profile.hpp"
 #include "vk/texture.hpp"
 #include "vk/pipeline.hpp"
@@ -33,11 +33,11 @@ struct MovementSpecializationData
 };
 
 
-class ComputeShaderNBody : public Hiss::VkApplication
+class ComputeShaderNBody : public Hiss::Application
 {
 public:
     ComputeShaderNBody()
-        : VkApplication("n_body")
+        : Application("n_body")
     {}
     ~ComputeShaderNBody() override = default;
 

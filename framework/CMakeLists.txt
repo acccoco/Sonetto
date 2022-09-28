@@ -15,7 +15,6 @@ find_package(Vulkan REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(TinyGLTF REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/tinyGLTF)
 find_package(TinyObjLoader REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/tinyobj)
-find_package(vma REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/vma)
 set(LIBS
         glm::glm
         glfw
@@ -23,11 +22,17 @@ set(LIBS
         spdlog::spdlog
         TinyGLTF
         TinyObjLoader
-        vma
+        )
+
+set(LIB_HEADERS
+        lib/vma/vk_mem_alloc.h
+        )
+
+set(LIB_SOURCES
+        lib/vma/vk_mem_alloc.cpp
         )
 
 set(HEADER_FILES
-        application.hpp
         vk/buffer.hpp
         vk/framebuffer.hpp
         vk/image.hpp
@@ -40,10 +45,10 @@ set(HEADER_FILES
         vk/instance.hpp
         window.hpp
         vk/device.hpp
-        vk/physical_device.hpp
-        vk_application.hpp
+        vk/gpu.hpp
+        application.hpp
         vk/pipeline.hpp
-        vk/command.hpp frame.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame_manager.hpp utils/semaphore_pool.hpp vk/vk_config.hpp)
+        vk/command.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame.hpp utils/semaphore_pool.hpp vk/vk_config.hpp run.hpp vk/queue.hpp)
 
 # source files
 set(SOURCE_FILES
@@ -52,20 +57,19 @@ set(SOURCE_FILES
         vk/framebuffer.cpp
         vk/vertex.cpp
         vk/texture.cpp
-        application.cpp
         vk/instance.cpp
         window.cpp
         vk/device.cpp
         vk/vk_common.cpp
-        vk/physical_device.cpp
+        vk/gpu.cpp
         vk/swapchain.cpp
-        vk_application.cpp
+        application.cpp
         vk/pipeline.cpp
         vk/command.cpp
-        vk/fence_pool.cpp utils/tools.cpp vk/model.cpp frame.cpp)
+        vk/fence_pool.cpp utils/tools.cpp vk/model.cpp)
 
 
 # static library
-add_library(${PROJ_FRAMEWORK} STATIC ${SOURCE_FILES} ${HEADER_FILES})
+add_library(${PROJ_FRAMEWORK} STATIC ${SOURCE_FILES} ${HEADER_FILES} ${LIB_HEADERS} ${LIB_SOURCES})
 target_link_libraries(${PROJ_FRAMEWORK} PUBLIC ${LIBS})
-target_include_directories(${PROJ_FRAMEWORK} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${PROJ_FRAMEWORK} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/lib)

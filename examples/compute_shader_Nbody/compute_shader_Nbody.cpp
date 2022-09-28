@@ -1,6 +1,7 @@
 #include "compute_shader_Nbody.hpp"
 #include "utils/tools.hpp"
 #include "utils/rand.hpp"
+#include "run.hpp"
 
 
 APP_RUN(ComputeShaderNBody)
@@ -8,8 +9,8 @@ APP_RUN(ComputeShaderNBody)
 
 void ComputeShaderNBody::prepare()
 {
-    Hiss::VkApplication::prepare();
-    _logger->info("[NBody] prepare");
+    Hiss::Application::prepare();
+    spdlog::info("[NBody] prepare");
 
     /* 公共部分初始化 */
     descriptor_pool_prepare();
@@ -24,7 +25,7 @@ void ComputeShaderNBody::prepare()
 
 void ComputeShaderNBody::clean()
 {
-    _logger->info("[NBody] clean");
+    spdlog::info("[NBody] clean");
 
     compute_clean();
     graphics_clean();
@@ -33,13 +34,13 @@ void ComputeShaderNBody::clean()
     DELETE(storage_buffer);
     _device->vkdevice().destroy(descriptor_pool);
 
-    Hiss::VkApplication::clean();
+    Hiss::Application::clean();
 }
 
 
 void ComputeShaderNBody::resize()
 {
-    Hiss::VkApplication::resize();
+    Hiss::Application::resize();
 }
 
 
@@ -52,7 +53,7 @@ void ComputeShaderNBody::compute_prepare()
     compute.shared_data_size = std::min<uint32_t>(1024, _physical_device->properties().limits.maxComputeSharedMemorySize
                                                                 / sizeof(glm::vec4));
     compute.workgroup_num    = num_particles / compute.workgroup_size;
-    _logger->info("[NBody] workgroup size: {}, workgroup count: {}, shared data size: {}", compute.workgroup_size,
+    spdlog::info("[NBody] workgroup size: {}, workgroup count: {}, shared data size: {}", compute.workgroup_size,
                   compute.workgroup_num, compute.shared_data_size);
 
 
@@ -64,7 +65,7 @@ void ComputeShaderNBody::compute_prepare()
     /* 创建 semaphore，并设为 signaled 状态 */
     for (auto& semaphore: compute.semaphores)
     {
-        semaphore = _device->semaphore_create(true);
+        semaphore = _device->create_semaphore(true);
     }
 
 
@@ -78,7 +79,7 @@ void ComputeShaderNBody::compute_prepare()
 
 void ComputeShaderNBody::graphics_prepare()
 {
-    _logger->info("[NBody] graphics prepare");
+    spdlog::info("[NBody] graphics prepare");
 
     graphics_load_assets();
     graphics_uniform_buffer_prepare();
@@ -87,7 +88,7 @@ void ComputeShaderNBody::graphics_prepare()
 
     for (auto& semaphore: graphics.semaphores)
     {
-        semaphore = _device->semaphore_create();
+        semaphore = _device->create_semaphore();
     }
 }
 
@@ -249,7 +250,7 @@ void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffe
 {
     assert(storage_buffer);
     command_buffer.begin(vk::CommandBufferBeginInfo{});
-    bool need_queue_transfer = !Hiss::Queue::is_same_queue_family(_device->queue_compute(), _device->queue_graphics());
+    bool need_queue_transfer = !Hiss::Queue::is_same_queue_family(_device->queue_compute(), _device->queue());
 
 
     /* queue family owner transfer: acquire */
@@ -259,7 +260,7 @@ void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffe
                                        vk::PipelineStageFlagBits::eComputeShader, {}, {},
                                        {vk::BufferMemoryBarrier{
                                                .dstAccessMask       = vk::AccessFlagBits::eShaderWrite,
-                                               .srcQueueFamilyIndex = _device->queue_graphics().family_index,
+                                               .srcQueueFamilyIndex = _device->queue().family_index,
                                                .dstQueueFamilyIndex = _device->queue_compute().family_index,
                                                .buffer              = storage_buffer->vkbuffer(),
                                                .offset              = 0,
@@ -305,7 +306,7 @@ void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffe
                                        {vk::BufferMemoryBarrier{
                                                .srcAccessMask       = vk::AccessFlagBits::eShaderWrite,
                                                .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .dstQueueFamilyIndex = _device->queue_graphics().family_index,
+                                               .dstQueueFamilyIndex = _device->queue().family_index,
                                                .buffer              = storage_buffer->vkbuffer(),
                                                .offset              = 0,
                                                .size                = storage_buffer->buffer_size(),
@@ -318,7 +319,7 @@ void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffe
 
 void ComputeShaderNBody::particles_prepare()
 {
-    _logger->info("[NBody] particles craete");
+    spdlog::info("[NBody] particles craete");
 
     std::vector<glm::vec3> attractors = {
             glm::vec3(5.0f, 0.0f, 0.0f),     //
@@ -328,7 +329,7 @@ void ComputeShaderNBody::particles_prepare()
             glm::vec3(0.0f, 4.0f, 0.0f),     //
             glm::vec3(0.0f, -8.0f, 0.0f),    //
     };
-    _logger->info("[NBody] number of attractors: {}", attractors.size());
+    spdlog::info("[NBody] number of attractors: {}", attractors.size());
 
     num_particles = attractors.size() * PARTICLES_PER_ATTRACTOR;
     particles     = std::vector<Particle>(num_particles);
@@ -351,8 +352,9 @@ void ComputeShaderNBody::particles_prepare()
             else
             {
                 /* position */
-                glm::vec3 position = attractors[attr_idx] + 0.75f * glm::vec3(rand.normal_0_1(), rand.normal_0_1(), rand.normal_0_1());
-                float     len      = glm::length(glm::normalize(position - attractors[attr_idx]));
+                glm::vec3 position = attractors[attr_idx]
+                                   + 0.75f * glm::vec3(rand.normal_0_1(), rand.normal_0_1(), rand.normal_0_1());
+                float len = glm::length(glm::normalize(position - attractors[attr_idx]));
                 position.y *= 2.f - (len * len);
 
                 /* velocity */
@@ -376,7 +378,7 @@ void ComputeShaderNBody::particles_prepare()
 void ComputeShaderNBody::storage_buffer_prepare()
 {
     assert(!particles.empty());
-    _logger->debug("[NBody] storage buffer prepare");
+    spdlog::debug("[NBody] storage buffer prepare");
 
 
     /* create storage buffer */
@@ -399,14 +401,14 @@ void ComputeShaderNBody::storage_buffer_prepare()
 
 
     /* 进行一次 release，为了和 graphics pass 的 acqurie 匹配 */
-    if (!Hiss::Queue::is_same_queue_family(_device->queue_graphics(), _device->queue_compute()))
+    if (!Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute()))
     {
         command_buffer().pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
                                          {}, {},
                                          {vk::BufferMemoryBarrier{
                                                  .srcAccessMask       = vk::AccessFlagBits::eTransferWrite,
                                                  .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                                 .dstQueueFamilyIndex = _device->queue_graphics().family_index,
+                                                 .dstQueueFamilyIndex = _device->queue().family_index,
                                                  .buffer              = storage_buffer->vkbuffer(),
                                                  .offset              = 0,
                                                  .size                = storage_buffer_size,
@@ -464,7 +466,8 @@ void ComputeShaderNBody::compute_uniform_buffer_prepare()
 void ComputeShaderNBody::graphics_pipeline_prepare()
 {
     /* shader stage */
-    graphics.pipeline_state.shader_stage_add(_shader_loader->load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
+    graphics.pipeline_state.shader_stage_add(
+            _shader_loader->load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
     graphics.pipeline_state.shader_stage_add(
             _shader_loader->load(graphics.frag_shader_path, vk::ShaderStageFlagBits::eFragment));
 
@@ -599,7 +602,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
 
 
     bool need_transfer_compute =
-            !Hiss::Queue::is_same_queue_family(_device->queue_graphics(), _device->queue_compute());
+            !Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute());
 
     /* execution barrier(depth attachment) */
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests,
@@ -632,7 +635,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
                                        {vk::BufferMemoryBarrier{
                                                .dstAccessMask       = vk::AccessFlagBits::eVertexAttributeRead,
                                                .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .dstQueueFamilyIndex = _device->queue_graphics().family_index,
+                                               .dstQueueFamilyIndex = _device->queue().family_index,
                                                .buffer              = storage_buffer->vkbuffer(),
                                                .offset              = 0,
                                                .size                = storage_buffer->buffer_size(),
@@ -669,7 +672,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
                                        vk::PipelineStageFlagBits::eComputeShader, {}, {},
                                        {vk::BufferMemoryBarrier{
                                                .srcAccessMask       = vk::AccessFlagBits::eVertexAttributeRead,
-                                               .srcQueueFamilyIndex = _device->queue_graphics().family_index,
+                                               .srcQueueFamilyIndex = _device->queue().family_index,
                                                .dstQueueFamilyIndex = _device->queue_compute().family_index,
                                                .buffer              = storage_buffer->vkbuffer(),
                                                .offset              = 0,
@@ -685,7 +688,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
                                            .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
                                            .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
                                            .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-                                           .srcQueueFamilyIndex = _device->queue_graphics().family_index,
+                                           .srcQueueFamilyIndex = _device->queue().family_index,
                                            .dstQueueFamilyIndex = _device->queue_present().family_index,
                                            .image               = color_image,
                                            .subresourceRange    = _swapchain->get_image_subresource_range(),
@@ -698,7 +701,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
 void ComputeShaderNBody::update(double delta_time) noexcept
 {
     delta_time /= 1000;
-    Hiss::VkApplication::update(delta_time);
+    Hiss::Application::perupdate(delta_time);
 
     prepare_frame();
 
@@ -730,7 +733,7 @@ void ComputeShaderNBody::update(double delta_time) noexcept
             current_frame().semaphore_render_complete(),
     };
     vk::Fence graphics_fence = _device->fence_pool().acquire(false);
-    _device->queue_graphics().queue.submit(
+    _device->queue().queue.submit(
             vk::SubmitInfo{
                     .waitSemaphoreCount   = static_cast<uint32_t>(grahics_wait_semaphores.size()),
                     .pWaitSemaphores      = grahics_wait_semaphores.data(),
@@ -778,7 +781,7 @@ void ComputeShaderNBody::compute_uniform_update(Hiss::Buffer& buffer, float delt
 
 void ComputeShaderNBody::compute_clean()
 {
-    _logger->info("[NBody] compute clean");
+    spdlog::info("[NBody] compute clean");
 
     for (auto& semaphore: compute.semaphores)
     {
@@ -797,7 +800,7 @@ void ComputeShaderNBody::compute_clean()
 
 void ComputeShaderNBody::graphics_clean()
 {
-    _logger->info("[NBody] graphics clean");
+    spdlog::info("[NBody] graphics clean");
 
     DELETE(graphics.tex_particle);
     DELETE(graphics.tex_gradient);

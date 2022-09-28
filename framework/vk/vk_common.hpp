@@ -13,7 +13,9 @@
 #include <vulkan/vulkan.hpp>
 
 /* vma 有 include vulkan.h，为了确保宏定义开关，需要在 vulkan.h 之后 include  vma */
-#include "vk_mem_alloc.h"
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#include "vma/vk_mem_alloc.h"
 
 
 /* 需要在 vulkan 之后被 include，内部的一些声明需要来自 vulkan 的 macro */

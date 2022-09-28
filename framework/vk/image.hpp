@@ -28,7 +28,7 @@ public:
     Image(Image&&) = delete;
     ~Image();
 
-    [[nodiscard]] const Device& device_get() const
+    [[nodiscard]] Device& device_get() const
     {
         return _device;
     }
@@ -64,7 +64,7 @@ public:
     // 创建 depth，并立即转换为 eDepthStencilAttachmentOptimal layout
     static Image* create_depth_attach(Device& device, vk::Extent2D extent, const std::string& name)
     {
-        vk::Format depth_format = device.gpu_get().depth_stencil_format.get();
+        vk::Format depth_format = device.get_gpu().depth_stencil_format.get();
         auto       depth_image  = new Image(Image::CreateInfo{
                        .device            = device,
                        .format            = depth_format,
@@ -129,7 +129,7 @@ public:
 
 
 private:
-    const Device&             _device;
+    Device&             _device;
     vk::ImageView             _image_view  = VK_NULL_HANDLE;
     vk::Format                _format      = {};
     vk::ImageSubresourceRange _subresource = {};

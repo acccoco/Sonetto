@@ -4,11 +4,17 @@
  */
 #pragma once
 #include <string>
+#include <spdlog/spdlog.h>
 
 
 const int32_t WINDOW_WIDTH  = 800;
 const int32_t WINDOW_HEIGHT = 800;
 
+const struct
+{
+    spdlog::level::level_enum level   = spdlog::level::trace;
+    std::string               pattern = "[%^%L%$] %v";
+} default_log_config;
 
 
 inline std::string ASSETS(const std::string& obj)

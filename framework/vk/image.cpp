@@ -68,7 +68,7 @@ Hiss::Image::Image(Device& device, vk::Format format, const vk::Extent2D& extent
     _image = device.vkdevice().createImage(image_info);
 
     auto memory_require = device.vkdevice().getImageMemoryRequirements(_image);
-    _memory             = device.memory_allocate(memory_require, memory_properties);
+    _memory             = device.allocate_memory(memory_require, memory_properties);
 
     device.vkdevice().bindImageMemory(_image, _memory, 0);
 }
@@ -95,7 +95,7 @@ void Hiss::Image::layout_tran(vk::ImageLayout old_layout, vk::ImageLayout new_la
                                  .layerCount     = 1},
     };
 
-    OneTimeCommand command_buffer{_device, _device.command_pool_graphics()};
+    OneTimeCommand command_buffer{_device, _device.command_pool()};
     command_buffer().pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eBottomOfPipe,
                                      {}, {}, {}, {barrier});
     command_buffer.exec();
@@ -119,7 +119,7 @@ void Hiss::Image::copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags a
     };
 
 
-    Hiss::OneTimeCommand command(_device, _device.command_pool_graphics());
+    Hiss::OneTimeCommand command(_device, _device.command_pool());
     command().copyBufferToImage(buffer, _image, vk::ImageLayout::eTransferDstOptimal, {copy_info});
     command.exec();
 }
@@ -142,11 +142,11 @@ bool Hiss::Image::mipmap_generate(vk::ImageAspectFlags aspect)
     if (_mip_levels == 1)
         return true;
 
-    if (!_device.gpu_get().is_support_linear_filter(_format))
+    if (!_device.get_gpu().is_support_linear_filter(_format))
         return false;
 
 
-    Hiss::OneTimeCommand   command(_device, _device.command_pool_graphics());
+    Hiss::OneTimeCommand   command(_device, _device.command_pool());
     vk::ImageMemoryBarrier barrier = {
             .image            = _image,
             .subresourceRange = {.aspectMask = aspect, .levelCount = 1, .baseArrayLayer = 0, .layerCount = 1}};
