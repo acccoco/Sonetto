@@ -15,7 +15,7 @@
 /* vma 有 include vulkan.h，为了确保宏定义开关，需要在 vulkan.h 之后 include  vma */
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
-#include "vma/vk_mem_alloc.h"
+#include "vk_mem_alloc.h"
 
 
 /* 需要在 vulkan 之后被 include，内部的一些声明需要来自 vulkan 的 macro */
@@ -83,4 +83,13 @@ const vk::ImageSubresourceRange COLOR_SUBRESOURCE_RANGE = {
         .baseArrayLayer = 0,
         .layerCount     = 1,
 };
+
+
+// pipeline stage 以及 access flag 的简单组合
+struct StageAccess
+{
+    vk::PipelineStageFlags stage  = {};
+    vk::AccessFlags        access = {};
+};
+
 }    // namespace Hiss

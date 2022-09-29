@@ -33,9 +33,11 @@ public:
     void revert(const std::vector<vk::Fence>& fences);
 
 private:
-    Device&          _device;
+    Device&                _device;
     std::vector<vk::Fence> _available_fences = {};    // fence 的状态：signaled
     std::vector<vk::Fence> _all_fences       = {};
+
+    const uint32_t MAX_NUMBER = 64;
 };
 
 }    // namespace Hiss

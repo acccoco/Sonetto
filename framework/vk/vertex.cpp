@@ -2,37 +2,6 @@
 #include "vk/buffer.hpp"
 
 
-std::array<vk::VertexInputAttributeDescription, 2> Hiss::Vertex2DColor::attribute_description_get(uint32_t binding)
-{
-    return {
-            vk::VertexInputAttributeDescription{
-                    .location = 0,
-                    .binding  = binding,
-                    .format   = vk::Format::eR32G32Sfloat,    // signed float
-                    .offset   = offsetof(Vertex2DColor, position),
-            },
-            vk::VertexInputAttributeDescription{
-                    .location = 1,
-                    .binding  = binding,
-                    .format   = vk::Format::eR32G32B32Sfloat,
-                    .offset   = offsetof(Vertex2DColor, color),
-            },
-    };
-}
-
-
-std::array<vk::VertexInputBindingDescription, 1> Hiss::Vertex2DColor::binding_description_get(uint32_t bindind)
-{
-    return {
-            vk::VertexInputBindingDescription{
-                    .binding   = bindind,
-                    .stride    = sizeof(Hiss::Vertex2DColor),
-                    .inputRate = vk::VertexInputRate::eVertex,
-            },
-    };
-}
-
-
 Hiss::IndexBuffer::IndexBuffer(Hiss::Device& device, const std::vector<element_t>& indices)
     : Buffer(device, sizeof(element_t) * indices.size(),
              vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,

@@ -1,5 +1,5 @@
 #pragma once
-#include "application.hpp"
+#include "engine.hpp"
 #include "vk/vertex.hpp"
 #include "proj_profile.hpp"
 #include "vk/pipeline.hpp"
@@ -8,8 +8,8 @@
 class HelloTriangle
 {
 public:
-    explicit HelloTriangle(Hiss::Application& app)
-        : app(app)
+    explicit HelloTriangle(Hiss::Engine& engine)
+        : engine(engine)
     {}
 
 
@@ -23,9 +23,6 @@ private:
     struct FramePayload
     {
         vk::CommandBuffer command_buffer = VK_NULL_HANDLE;
-
-        vk::RenderingAttachmentInfo color_attach_info = {};
-        vk::RenderingAttachmentInfo depth_attach_info = {};
     };
 
 
@@ -34,7 +31,7 @@ private:
 
 
 private:
-    Hiss::Application& app;
+    Hiss::Engine& engine;
 
     // 顶点数据
     std::vector<Hiss::Vertex2DColor> vertices = {
@@ -50,17 +47,14 @@ private:
     const std::string shader_frag_path = SHADER("hello_triangle/hello_triangle.frag.spv");
 
 
-    Hiss::GraphicsPipelineTemplate _pipeline_template;
-    vk::Pipeline                   _pipeline;
-    vk::PipelineLayout             _pipeline_layout;
-    // std::shared_ptr<Hiss::VertexBuffer<Hiss::Vertex2DColor>> _vertex_buffer;
-    // std::shared_ptr<Hiss::IndexBuffer>                       _index_buffer;
+    Hiss::PipelineTemplate _pipeline_template;
+    vk::Pipeline           _pipeline;
+    vk::PipelineLayout     _pipeline_layout;
 
-    Hiss::IndexBuffer2*                       _index_buffer2{};
-    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer2{};
+    Hiss::IndexBuffer2*                       _index_buffer{};
+    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer{};
 
-    Hiss::Image*     depth_image      = nullptr;
-    Hiss::ImageView* depth_image_view = nullptr;
+    Hiss::Image2D* _depth_image;
 
 
     std::vector<FramePayload> _payloads = {};

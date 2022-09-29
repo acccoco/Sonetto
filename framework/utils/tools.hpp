@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <fstream>
+#include <fmt/format.h>
+#include <fmt/color.h>
 #include "stb_image.h"
 
 
@@ -25,26 +27,16 @@ class Prop
 public:
     friend frient_t;
     Prop() = default;
-    explicit Prop(value_t value)
+    explicit Prop(const value_t& value)
         : _value(value)
     {}
 
-    // NOTE 引用可以提高效率，const 可以防止被修改
-    [[nodiscard]] inline const value_t& get() const
-    {
-        return this->_value;
-    }
 
-    inline const value_t& operator()() const
-    {
-        return this->_value;
-    }
+    // NOTE 引用可以提高效率，const 可以防止被修改
+    inline const value_t& operator()() const { return this->_value; }
 
 private:
-    inline void operator=(value_t new_value)
-    {
-        this->_value = new_value;
-    }
+    inline void operator=(value_t new_value) { this->_value = new_value; }
 
 
     value_t _value;
@@ -65,21 +57,11 @@ public:
         : _ptr(ptr)
     {}
 
-    inline value_t& operator()() const
-    {
-        return *this->_ptr;
-    }
+    inline value_t& operator()() const { return *this->_ptr; }
 
-    inline value_t* get_ptr() const
-    {
-        return this->_ptr;
-    }
 
 private:
-    inline void operator=(value_t* new_ptr)
-    {
-        this->_ptr = new_ptr;
-    }
+    inline void operator=(value_t* new_ptr) { this->_ptr = new_ptr; }
 
     value_t* _ptr;
 };
@@ -123,4 +105,10 @@ template<typename T>
 inline bool exist(const std::vector<T>& arr, const T& value)
 {
     return std::find(arr.begin(), arr.end(), value) != arr.end();
+}
+
+
+inline std::string fmt_blue(const std::string& str)
+{
+    return fmt::format(fmt::fg(fmt::terminal_color::blue) | fmt::emphasis::bold, str);
 }

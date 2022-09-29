@@ -16,6 +16,9 @@ vk::Fence Hiss::FencePool::acquire(bool signaled)
         vk::Fence fence = _device.vkdevice().createFence({.flags = vk::FenceCreateFlagBits::eSignaled});
         _available_fences.push_back(fence);
         _all_fences.push_back(fence);
+
+        if (_all_fences.size() > MAX_NUMBER)
+            spdlog::warn("fence pool has too many fence: {}", _all_fences.size());
     }
 
     vk::Fence fence = _available_fences.back();

@@ -10,7 +10,6 @@ Hiss::Texture::Texture(Hiss::Device& device, std::string tex_path, bool mipmap)
       _mip_levels(mipmap)
 {
     image_create(mipmap);
-    _image_view = new Hiss::ImageView(*_image, vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
     sampler_create();
 }
 
@@ -80,7 +79,7 @@ void Hiss::Texture::sampler_create()
             .mipLodBias = 0.f,
 
             .anisotropyEnable = VK_TRUE,
-            .maxAnisotropy    = _device.get_gpu().properties().limits.maxSamplerAnisotropy,
+            .maxAnisotropy    = _device.gpu().properties().limits.maxSamplerAnisotropy,
 
             // 在 PCF shadow map 中会用到
             .compareEnable = VK_FALSE,

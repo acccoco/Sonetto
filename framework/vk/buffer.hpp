@@ -27,10 +27,7 @@ public:
                         nullptr);
     }
 
-    ~DeviceBuffer()
-    {
-        vmaDestroyBuffer(_allocator, buffer._value, _allocation);
-    }
+    ~DeviceBuffer() { vmaDestroyBuffer(_allocator, buffer._value, _allocation); }
 
 
 public:
@@ -47,7 +44,7 @@ private:
 class Buffer
 {
 public:
-    Buffer(Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
+    Buffer(const Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
            vk::MemoryPropertyFlags memory_properties);
     virtual ~Buffer();
 
@@ -58,10 +55,7 @@ public:
                                              vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memory_properties,
                                              void* data);
 
-    [[nodiscard]] vk::Buffer vkbuffer() const
-    {
-        return _buffer;
-    }
+    [[nodiscard]] vk::Buffer vkbuffer() const { return _buffer; }
 
     void* memory_map();
     void  memory_unmap();
@@ -73,11 +67,11 @@ public:
 
 
 protected:
-    Hiss::Device&    _device;
-    vk::Buffer       _buffer = VK_NULL_HANDLE;
-    vk::DeviceMemory _memory = VK_NULL_HANDLE;
-    bool             _map    = false;
-    void*            _data   = nullptr;
+    const Hiss::Device& _device;
+    vk::Buffer          _buffer = VK_NULL_HANDLE;
+    vk::DeviceMemory    _memory = VK_NULL_HANDLE;
+    bool                _map    = false;
+    void*               _data   = nullptr;
 };
 
 
@@ -104,10 +98,7 @@ public:
         vmaCreateBuffer(allocator, &buffer_info, &alloc_create_info, &buffer._value, &_allocation, &_alloc_info);
     }
 
-    ~StageBuffer()
-    {
-        vmaDestroyBuffer(_allocator, buffer._value, _allocation);
-    }
+    ~StageBuffer() { vmaDestroyBuffer(_allocator, buffer._value, _allocation); }
 
 
     // 将内存拷贝到 stage buffer 中

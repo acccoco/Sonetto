@@ -16,12 +16,6 @@ public:
     ~Device();
 
 
-    [[nodiscard]] const GPU& get_gpu() const
-    {
-        return _gpu;
-    }
-
-
     [[nodiscard]] vk::DeviceMemory allocate_memory(const vk::MemoryRequirements&  mem_require,
                                                    const vk::MemoryPropertyFlags& mem_prop) const;
 
@@ -42,6 +36,9 @@ public:
     Prop<vk::Device, Device>     vkdevice{VK_NULL_HANDLE};
     PropPtr<CommandPool, Device> command_pool{nullptr};
     PropPtr<FencePool, Device>   fence_pool{nullptr};
+
+    [[nodiscard]] vk::Queue  vkqueue() const { return this->queue().queue; }
+    [[nodiscard]] const GPU& gpu() const { return _gpu; }
 
 
 private:

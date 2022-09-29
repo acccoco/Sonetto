@@ -6,132 +6,90 @@
 namespace Hiss
 {
 
-
-class Image
+class Image2D
 {
 public:
-    struct CreateInfo
+    struct Info
     {
-        Device&                 device;
-        vk::Format              format            = {};
-        vk::Extent2D            extent            = {};
-        uint32_t                mip_levels        = 1;
-        std::vector<uint32_t>   sharing_queues    = {};
-        vk::ImageUsageFlags     usage             = {};
-        vk::MemoryPropertyFlags memory_properties = {};
-        vk::ImageTiling         tiling            = vk::ImageTiling::eOptimal;
-        vk::SampleCountFlagBits samples           = vk::SampleCountFlagBits::e1;
+        std::string              name;
+        vk::Format               format     = {};
+        vk::Extent2D             extent     = {};
+        uint32_t                 mip_levels = 1;
+        vk::ImageUsageFlags      usage      = {};
+        vk::ImageTiling          tiling     = vk::ImageTiling::eOptimal;
+        vk::SampleCountFlagBits  samples    = vk::SampleCountFlagBits::e1;
+        VmaAllocationCreateFlags memory_flags;
+        vk::ImageAspectFlags     aspect;
+        vk::ImageLayout          init_layout = vk::ImageLayout::eUndefined;
     };
 
-    explicit Image(CreateInfo&& create_info);
-    Image(Image&)  = delete;
-    Image(Image&&) = delete;
-    ~Image();
-
-    [[nodiscard]] Device& device_get() const
+    struct View
     {
-        return _device;
-    }
-    [[nodiscard]] vk::Format format_get() const
-    {
-        return _format;
-    }
-    [[nodiscard]] vk::SampleCountFlagBits samples_get() const
-    {
-        return _samples;
-    }
-    [[nodiscard]] vk::Image vkimage() const
-    {
-        return _image;
-    }
-    [[nodiscard]] uint32_t mip_levels() const
-    {
-        return _mip_levels;
-    }
-
-    /**
-     * 默认 old layout = undefined，使用 graphics queue 进行转换
-     */
-    void layout_tran(vk::ImageLayout old_layout, vk::ImageLayout new_layout, vk::ImageAspectFlags image_aspect,
-                     uint32_t base_mip_level, uint32_t mip_level_count);
-
-    /**
-     * 将 buffer 数据传入 image 的 level#0，会将 image level#0 变为 TransferDst layout，使用 graphics queue 进行转换
-     */
-    void copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags aspect);
+        vk::ImageView             vkview;
+        vk::ImageSubresourceRange range;
+    };
 
 
-    // 创建 depth，并立即转换为 eDepthStencilAttachmentOptimal layout
-    static Image* create_depth_attach(Device& device, vk::Extent2D extent, const std::string& name)
-    {
-        vk::Format depth_format = device.get_gpu().depth_stencil_format.get();
-        auto       depth_image  = new Image(Image::CreateInfo{
-                       .device            = device,
-                       .format            = depth_format,
-                       .extent            = extent,
-                       .usage             = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                       .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-        });
-        device.set_debug_name(vk::ObjectType::eImage, (VkImage) depth_image->vkimage(), name);
-        depth_image->layout_tran(vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                 vk::ImageAspectFlagBits::eDepth, 0, 1);
+    Image2D(VmaAllocator allocator, Device& device, const Info& info);
 
-        return depth_image;
-    }
+    // 外部已经创建好了 image
+    Image2D(Device& device, vk::Image image, const std::string& name, vk::ImageAspectFlags aspect,
+            vk::ImageLayout layout, vk::Format format, vk::Extent2D extent);
+
+
+    ~Image2D();
+
+
+    // 访问某个 image view
+    View view(uint32_t base_mip = 0, uint32_t mip_count = 1);
+
+
+    // 立刻执行 layout transfer，会检查连续的相同 layout，减少 gpu 的调用次数
+    void transfer_layout_im(vk::ImageLayout new_layout, uint32_t base_level = 0, uint32_t level_count = 1);
+
+
+    // execution image memory barrier
+    void execution_barrier(const StageAccess& src, const StageAccess& dst, vk::CommandBuffer command_buffer,
+                           uint32_t base_level = 0, uint32_t level_count = 1);
 
 
     /**
-     * 注：
-     *  - 确保所有 level 都是 transfer_dst layout
-     *  - 使用 graphics queue 进行创建
-     *  - 会将 layout 转换为 readonly
-     * @return 如果 format 不支持 linear filter，则无法创建 mipmap
+     * 向 command buffer 中添加 layout transfer 的指令
+     * @param clear 是否清除原数据
      */
-    bool mipmap_generate(vk::ImageAspectFlags aspect);
-
+    void transfer_layout(std::optional<StageAccess> src, std::optional<StageAccess> dst,
+                         vk::CommandBuffer command_buffer, vk::ImageLayout new_layout, bool clear = false,
+                         uint32_t base_level = 0, uint32_t level_count = 1);
 
 private:
-    Image(Device& device, vk::Format format, const vk::Extent2D& extent, uint32_t mip_levels,
-          const std::vector<uint32_t>& sharing_queues, vk::ImageUsageFlags usage,
-          vk::MemoryPropertyFlags memory_properties, vk::ImageTiling tiling, vk::SampleCountFlagBits samples);
-
-    // members =======================================================
-
-private:
-    Device&                 _device;
-    vk::Image               _image      = {};
-    vk::DeviceMemory        _memory     = {};
-    vk::Extent2D            _extent     = {};
-    vk::Format              _format     = {};
-    uint32_t                _mip_levels = {};
-    vk::ImageTiling         _tiling     = {};
-    vk::ImageUsageFlags     _usage      = {};
-    vk::SampleCountFlagBits _samples    = {};
-};
+    // 创建 image view
+    View create_view(uint32_t base_mip, uint32_t mip_count);
 
 
-class ImageView
-{
+    // 立刻执行 layout transfer
+    void transfer_layout_im(vk::ImageLayout old_layout, vk::ImageLayout new_layout, uint32_t base_mip,
+                            uint32_t mip_count);
+
+
 public:
-    ImageView(const Image& image, vk::ImageAspectFlags image_aspect, uint32_t base_mip_level, uint32_t n_mip_level);
-    ImageView(ImageView&)        = delete;
-    ImageView(ImageView&& other) = delete;
-    ~ImageView();
-
-    [[nodiscard]] vk::ImageView view_get() const
-    {
-        return _image_view;
-    }
-    [[nodiscard]] const vk::ImageSubresourceRange& subresource_range() const
-    {
-        return _subresource;
-    }
+    Prop<VkImage, Image2D>              vkimage{};
+    Prop<std::string, Image2D>          name{};
+    Prop<vk::Format, Image2D>           format{};
+    Prop<vk::Extent2D, Image2D>         extent{};
+    Prop<vk::ImageAspectFlags, Image2D> aspect{};
+    Prop<uint32_t, Image2D>             mip_levels{};
 
 
 private:
-    Device&             _device;
-    vk::ImageView             _image_view  = VK_NULL_HANDLE;
-    vk::Format                _format      = {};
-    vk::ImageSubresourceRange _subresource = {};
+    Device& _device;
+
+    VmaAllocator  _allocator  = nullptr;
+    VmaAllocation _allocation = nullptr;
+
+    bool is_proxy = false;    // image 来自类的外部，并非在类中创建
+
+    std::vector<View> _views;    // view 主要用于 mip levels
+
+    std::vector<vk::ImageLayout> _layouts;    // 每个 mip 层级的 layout 信息
 };
 }    // namespace Hiss

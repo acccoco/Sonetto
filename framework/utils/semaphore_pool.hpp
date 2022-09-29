@@ -31,6 +31,9 @@ public:
             auto semaphore = _device.vkdevice().createSemaphore(vk::SemaphoreCreateInfo());
             _available_semaphores.push_back(semaphore);
             _all_semaphores.push_back(semaphore);
+
+            if (_all_semaphores.size() > MAX_NUMBER)
+                spdlog::warn("semaphore pool has too many semaphore: {}", _all_semaphores.size());
         }
 
         auto semaphore = this->_available_semaphores.back();
@@ -38,10 +41,7 @@ public:
         return semaphore;
     }
 
-    void revert(vk::Semaphore semaphore)
-    {
-        _available_semaphores.push_back(semaphore);
-    }
+    void revert(vk::Semaphore semaphore) { _available_semaphores.push_back(semaphore); }
 
 
 private:
@@ -49,5 +49,7 @@ private:
 
     std::vector<vk::Semaphore> _available_semaphores = {};
     std::vector<vk::Semaphore> _all_semaphores       = {};
+
+    const uint32_t MAX_NUMBER = 64;
 };
 }    // namespace Hiss

@@ -9,6 +9,9 @@ namespace Hiss
 /* MoltenVk 是 Vulkan 1.1 的实现 */
 const uint32_t APP_VK_VERSION = VK_API_VERSION_1_1;
 
+
+const uint32_t FRAMES_IN_FLIGHT = 3;
+
 // instance 需要的 layers
 inline std::vector<const char*> get_layers()
 {
@@ -104,24 +107,15 @@ static vk::Bool32 validation_debug_callback(VkDebugUtilsMessageSeverityFlagBitsE
                                             VkDebugUtilsMessageTypeFlagsEXT             message_type,
                                             const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
 {
-    const char* type;
-    switch (static_cast<vk::DebugUtilsMessageTypeFlagBitsEXT>(message_type))
-    {
-        case vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral: type = "General"; break;
-        case vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation: type = "Validation"; break;
-        case vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance: type = "Performance"; break;
-        default: type = "?";
-    }
-
     switch (message_severity)
     {
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-            spdlog::warn("[{}]: {}\n", type, callback_data->pMessage);
+            spdlog::warn("[validation] {}\n", callback_data->pMessage);
             break;
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-            spdlog::error("[{}]: {}\n", type, callback_data->pMessage);
+            spdlog::error("[validation] {}\n", callback_data->pMessage);
             break;
-        default: spdlog::info("[{}]: {}", type, callback_data->pMessage);
+        default: spdlog::info("[validation] {}", callback_data->pMessage);
     }
 
     return VK_FALSE;
@@ -133,7 +127,7 @@ const vk::DebugUtilsMessengerCreateInfoEXT _debug_utils_messenger_info = {
                          | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
                          | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
         .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
-                     //| vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
+                     | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
                      | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,
         .pfnUserCallback = validation_debug_callback,
 };

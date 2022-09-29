@@ -35,7 +35,7 @@ void Hiss::Device::create_logical_device()
     // dynamic rendering 需要在 .pNext 字段添加
     vk::PhysicalDeviceDynamicRenderingFeatures feature = {.dynamicRendering = VK_TRUE};
 
-    vkdevice = _gpu.vkgpu.get().createDevice(vk::DeviceCreateInfo{
+    vkdevice = _gpu.vkgpu().createDevice(vk::DeviceCreateInfo{
             .pNext                   = &feature,
             .queueCreateInfoCount    = 1,
             .pQueueCreateInfos       = &queue_info,
@@ -52,7 +52,7 @@ void Hiss::Device::create_logical_device()
             .flag         = QueueFlag::AllPowerful,
     };
 
-    spdlog::info("queue family index: {}", queue().family_index);
+    spdlog::info("[device] queue family index: {}", queue().family_index);
 
 
     this->set_debug_name(vk::ObjectType::eQueue, (VkQueue) queue().queue, "all powerfu queue");
@@ -79,7 +79,7 @@ Hiss::Device::~Device()
 vk::DeviceMemory Hiss::Device::allocate_memory(const vk::MemoryRequirements&  mem_require,
                                                const vk::MemoryPropertyFlags& mem_prop) const
 {
-    auto device_memory_properties = _gpu.vkgpu.get().getMemoryProperties();
+    auto device_memory_properties = _gpu.vkgpu().getMemoryProperties();
 
     /* 根据 mem require 和 properties 在 device 中找到合适的 memory type，获得其 index */
     std::optional<uint32_t> mem_idx;

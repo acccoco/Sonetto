@@ -5,13 +5,44 @@
 
 namespace Hiss
 {
+
+// 顶点格式 (location 0) vec2 position, (location 1) vec3 color
 struct Vertex2DColor
 {
     glm::vec2 position;
     glm::vec3 color;
 
-    static std::array<vk::VertexInputBindingDescription, 1>   binding_description_get(uint32_t bindind);
-    static std::array<vk::VertexInputAttributeDescription, 2> attribute_description_get(uint32_t binding);
+
+    static std::vector<vk::VertexInputBindingDescription> get_binding_description(uint32_t bindind)
+    {
+        return {
+                vk::VertexInputBindingDescription{
+                        // 表示一个 vertex buffer，一次渲染的顶点数据可能位于多个 vertex buffer 中
+                        .binding   = bindind,
+                        .stride    = sizeof(Hiss::Vertex2DColor),
+                        .inputRate = vk::VertexInputRate::eVertex,
+                },
+        };
+    }
+
+
+    static std::vector<vk::VertexInputAttributeDescription> get_attribute_description(uint32_t binding)
+    {
+        return {
+                vk::VertexInputAttributeDescription{
+                        .location = 0,
+                        .binding  = binding,
+                        .format   = vk::Format::eR32G32Sfloat,    // signed float
+                        .offset   = offsetof(Vertex2DColor, position),
+                },
+                vk::VertexInputAttributeDescription{
+                        .location = 1,
+                        .binding  = binding,
+                        .format   = vk::Format::eR32G32B32Sfloat,
+                        .offset   = offsetof(Vertex2DColor, color),
+                },
+        };
+    }
 };
 
 
@@ -55,7 +86,7 @@ class VertexBuffer : public Buffer
 public:
     using element_t = vertex_t;
 
-    VertexBuffer(Device& device, const std::vector<vertex_t>& vertices)
+    VertexBuffer(const Device& device, const std::vector<vertex_t>& vertices)
         : Buffer(device, sizeof(vertex_t) * vertices.size(),
                  vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
                  vk::MemoryPropertyFlagBits::eDeviceLocal),

@@ -27,14 +27,14 @@ Hiss::Window::Window(const std::string& title, int width, int height)
 
 
     /* 设置窗口大小改变的 callback */
-    glfwSetWindowUserPointer(window.get(), &_user_data);
-    glfwSetFramebufferSizeCallback(window.get(), callback_window_resize);
+    glfwSetWindowUserPointer(window(), &_user_data);
+    glfwSetFramebufferSizeCallback(window(), callback_window_resize);
 }
 
 
 Hiss::Window::~Window()
 {
-    glfwDestroyWindow(window.get());
+    glfwDestroyWindow(window());
     window._value = nullptr;
     glfwTerminate();
 }
@@ -43,11 +43,11 @@ Hiss::Window::~Window()
 void Hiss::Window::wait_exit_minimized() const
 {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(window.get(), &width, &height);
+    glfwGetFramebufferSize(window(), &width, &height);
     while (width == 0 || height == 0)
     {
         glfwWaitEvents();
-        glfwGetFramebufferSize(window.get(), &width, &height);
+        glfwGetFramebufferSize(window(), &width, &height);
     }
 }
 
@@ -65,7 +65,7 @@ vk::SurfaceKHR Hiss::Window::create_surface(vk::Instance instance) const
 {
     /* 调用 glfw 来创建 window surface，这样可以避免平台相关的细节 */
     VkSurfaceKHR surface_;
-    if (glfwCreateWindowSurface(instance, window.get(), nullptr, &surface_) != VK_SUCCESS)
+    if (glfwCreateWindowSurface(instance, window(), nullptr, &surface_) != VK_SUCCESS)
         throw std::runtime_error("failed to generate widnow surface by glfw.");
     return surface_;
 }
@@ -77,6 +77,6 @@ vk::SurfaceKHR Hiss::Window::create_surface(vk::Instance instance) const
 vk::Extent2D Hiss::Window::get_extent() const
 {
     int width, height;
-    glfwGetFramebufferSize(window.get(), &width, &height);
+    glfwGetFramebufferSize(window(), &width, &height);
     return {.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)};
 }

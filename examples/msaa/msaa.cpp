@@ -7,7 +7,7 @@ APP_RUN(MSAA)
 
 void MSAA::prepare()
 {
-    Application::prepare();
+    Engine::prepare();
     spdlog::info("[MSAA] prepare");
 
 
@@ -47,13 +47,13 @@ void MSAA::clean()
     render_pass_clean();
 
 
-    Application::clean();
+    Engine::clean();
 }
 
 
 void MSAA::resize()
 {
-    Application::resize();
+    Engine::resize();
     spdlog::info("[MSAA] on_resize");
 
 
@@ -70,7 +70,7 @@ void MSAA::msaa_framebuffer_prepare()
     /* color image and image view */
     _msaa_color_image = new Hiss::Image(Hiss::Image::CreateInfo{
             .device            = *_device,
-            .format            = _swapchain->get_color_format(),
+            .format            = _swapchain->color_format(),
             .extent            = _swapchain->get_extent(),
             .usage             = vk::ImageUsageFlagBits::eColorAttachment,
             .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
@@ -96,7 +96,7 @@ void MSAA::msaa_framebuffer_prepare()
 
 
     /* framebuffer */
-    _msaa_framebuffers.resize(_swapchain->get_image_number());
+    _msaa_framebuffers.resize(_swapchain->image_number());
     assert(_msaa_renderpass);
     for (size_t i = 0; i < _msaa_framebuffers.size(); ++i)
     {
@@ -130,7 +130,7 @@ void MSAA::render_pass_prepare()
     std::vector<vk::AttachmentDescription> attachments = {
             /* color attachment */
             vk::AttachmentDescription{
-                    .format        = _swapchain->get_color_format(),
+                    .format        = _swapchain->color_format(),
                     .samples       = _sample,
                     .loadOp        = vk::AttachmentLoadOp::eClear,
                     .storeOp       = vk::AttachmentStoreOp::eDontCare,
@@ -148,7 +148,7 @@ void MSAA::render_pass_prepare()
             },
             /* resolve attachment */
             vk::AttachmentDescription{
-                    .format        = _swapchain->get_color_format(),
+                    .format        = _swapchain->color_format(),
                     .samples       = vk::SampleCountFlagBits::e1,
                     .loadOp        = vk::AttachmentLoadOp::eDontCare,
                     .storeOp       = vk::AttachmentStoreOp::eStore,
@@ -217,7 +217,7 @@ void MSAA::pipeline_prepare()
     _pipeline_state.vertex_input_binding_set(Hiss::Vertex3DColorUv::binding_description_get(0));
     _pipeline_state.vertex_input_attribute_set(Hiss::Vertex3DColorUv::attribute_description_get(0));
 
-    _pipeline_state.msaa_set(_sample);
+    _pipeline_state.set_msaa(_sample);
 
     /* 在 view 使用 dynamic state，这样不用 recreate */
     _pipeline_state.dynamic_state_add(vk::DynamicState::eViewport);
@@ -232,13 +232,13 @@ void MSAA::pipeline_prepare()
     _pipeline_state.pipeline_layout_set(_pipeline_layout);
 
     assert(_msaa_renderpass);
-    _pipeline = _pipeline_state.generate(*_device, _msaa_renderpass, 0);
+    _pipeline = _pipeline_state.generate(*_device);
 }
 
 
 void MSAA::update(double delte_time) noexcept
 {
-    Hiss::Application::perupdate(delte_time);
+    Hiss::Engine::preupdate(delte_time);
     prepare_frame();
 
 

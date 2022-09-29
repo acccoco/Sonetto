@@ -5,7 +5,7 @@
 /**
  * buffer 的 sharing mode 是 Exclusive
  */
-Hiss::Buffer::Buffer(Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
+Hiss::Buffer::Buffer(const Hiss::Device& device, vk::DeviceSize size, vk::BufferUsageFlags usage,
                      vk::MemoryPropertyFlags memory_properties)
     : buffer_size(size),
       _device(device)

@@ -12,12 +12,12 @@ public:
     /**
      * 会将所有 level 都设为 readonly layout
      */
-    Texture(Device& device, std::string  tex_path, bool mipmap);
+    Texture(Device& device, std::string tex_path, bool mipmap);
     ~Texture();
 
     [[nodiscard]] vk::Sampler   sampler() const { return _sampler; }
     [[nodiscard]] vk::Image     image() const { return _image->vkimage(); }
-    [[nodiscard]] vk::ImageView image_view() const { return _image_view->view_get(); }
+    [[nodiscard]] vk::ImageView image_view() const { return _image->view().vkview; }
 
 
 private:
@@ -29,9 +29,8 @@ private:
 private:
     Device&           _device;
     const std::string _tex_path;
-    Image*            _image      = nullptr;
-    ImageView*        _image_view = nullptr;
-    vk::Sampler       _sampler    = VK_NULL_HANDLE;
+    Image2D*          _image   = nullptr;
+    vk::Sampler       _sampler = VK_NULL_HANDLE;
 
 
     uint32_t _width      = {};

@@ -9,7 +9,7 @@ APP_RUN(ComputeShaderNBody)
 
 void ComputeShaderNBody::prepare()
 {
-    Hiss::Application::prepare();
+    Hiss::Engine::prepare();
     spdlog::info("[NBody] prepare");
 
     /* 公共部分初始化 */
@@ -34,13 +34,13 @@ void ComputeShaderNBody::clean()
     DELETE(storage_buffer);
     _device->vkdevice().destroy(descriptor_pool);
 
-    Hiss::Application::clean();
+    Hiss::Engine::clean();
 }
 
 
 void ComputeShaderNBody::resize()
 {
-    Hiss::Application::resize();
+    Hiss::Engine::resize();
 }
 
 
@@ -519,7 +519,7 @@ void ComputeShaderNBody::graphics_pipeline_prepare()
     graphics.pipeline_state.dynamic_state_add(vk::DynamicState::eScissor);
 
 
-    graphics.pipeline = graphics.pipeline_state.generate(*_device, _simple_render_pass, 0);
+    graphics.pipeline = graphics.pipeline_state.generate(*_device);
 }
 
 
@@ -701,7 +701,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
 void ComputeShaderNBody::update(double delta_time) noexcept
 {
     delta_time /= 1000;
-    Hiss::Application::perupdate(delta_time);
+    Hiss::Engine::preupdate(delta_time);
 
     prepare_frame();
 

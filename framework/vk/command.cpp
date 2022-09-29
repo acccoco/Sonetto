@@ -36,7 +36,7 @@ vk::CommandBuffer Hiss::CommandPool::command_buffer_create(const std::string& na
 }
 
 
-Hiss::OneTimeCommand::OneTimeCommand(Hiss::Device& device, Hiss::CommandPool& pool)
+Hiss::OneTimeCommand::OneTimeCommand(const Hiss::Device& device, Hiss::CommandPool& pool)
     : _device(device),
       _pool(pool)
 {

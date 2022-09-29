@@ -32,7 +32,7 @@ public:
 
     [[nodiscard]] bool should_close() const
     {
-        return glfwWindowShouldClose(this->window.get());
+        return glfwWindowShouldClose(this->window());
     }
 
 
@@ -40,8 +40,8 @@ public:
     void poll_event() const
     {
         glfwPollEvents();
-        if (glfwGetKey(window.get(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window.get(), true);
+        if (glfwGetKey(window(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window(), true);
     }
 
 

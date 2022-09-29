@@ -1,4 +1,4 @@
-#include "application.hpp"
+#include "engine.hpp"
 #include "utils/tools.hpp"
 #include "vk/vk_config.hpp"
 #include "proj_profile.hpp"
@@ -15,25 +15,25 @@
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 
-void Hiss::Application::resize()
+void Hiss::Engine::resize()
 {
     _window->on_resize();
-    _swapchain    = Swapchain::resize(_swapchain, device(), *_window, _surface);
-    frame_manager = Hiss::FrameManager::resize(frame_manager._ptr, device(), *_swapchain);
+    _swapchain    = Swapchain::resize(_swapchain, *device._ptr, *_window, _surface);
+    frame_manager = Hiss::FrameManager::resize(frame_manager._ptr, *device._ptr, *_swapchain);
 }
 
 
-void Hiss::Application::prepare()
+void Hiss::Engine::prepare()
 {
-    _window = new Window(name.get(), WINDOW_WIDTH, WINDOW_HEIGHT);
+    _window = new Window(name(), WINDOW_WIDTH, WINDOW_HEIGHT);
 
     timer._value.start();
 
     // 创建 vulkan 应用的 instance
     VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-    _instance = new Instance(name.get(), &_debug_utils_messenger_info);
+    _instance = new Instance(name(), &_debug_utils_messenger_info);
     VULKAN_HPP_DEFAULT_DISPATCHER.init(_instance->vkinstance());
-    spdlog::info("instance created.");
+    spdlog::info("[engine] instance created.");
 
 
     // 创建 validation 的 debug messenger
@@ -49,28 +49,27 @@ void Hiss::Application::prepare()
     if (!physical_device.has_value())
         throw std::runtime_error("no suitable gpu found.");
     _physical_device = new GPU(physical_device.value(), _surface);
-    spdlog::info("physical device created.");
+    spdlog::info("[engine] physical device created.");
 
 
     // 创建 logical device
     device = new Device(*_physical_device);
-    spdlog::info("device created.");
+    spdlog::info("[engine] device created.");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(device().vkdevice());
 
     init_vma();
 
     // 创建 swapchain
-    _swapchain = new Swapchain(device(), *_window, _surface);
-    spdlog::info("image count: {}", _swapchain->get_image_number());
+    _swapchain = new Swapchain(*device._ptr, *_window, _surface);
 
 
-    frame_manager = new Hiss::FrameManager(device(), *_swapchain);
+    frame_manager = new Hiss::FrameManager(*device._ptr, *_swapchain);
 
-    shader_loader = new ShaderLoader(device());
+    shader_loader = new ShaderLoader(*device._ptr);
 }
 
 
-void Hiss::Application::init_vma()
+void Hiss::Engine::init_vma()
 {
     VmaVulkanFunctions vulkan_funcs = {
             .vkGetInstanceProcAddr = &vkGetInstanceProcAddr,
@@ -89,9 +88,9 @@ void Hiss::Application::init_vma()
 }
 
 
-void Hiss::Application::clean()
+void Hiss::Engine::clean()
 {
-    DELETE(shader_loader._ptr);
+    DELETE(shader_loader._value);
     DELETE(frame_manager._ptr);
     DELETE(_swapchain);
 
@@ -107,14 +106,27 @@ void Hiss::Application::clean()
 }
 
 
-void Hiss::Application::perupdate() noexcept
+void Hiss::Engine::preupdate() noexcept
 {
-    _window->poll_event();
-    current_frame = frame_manager._ptr->acquire_frame();
+    frame_manager._ptr->acquire_frame();
 }
 
 
-void Hiss::Application::postupdate() noexcept
+void Hiss::Engine::postupdate() noexcept
 {
-    frame_manager._ptr->submit_frame(current_frame._ptr);
+    frame_manager._ptr->submit_frame();
+}
+
+
+Hiss::Image2D* Hiss::Engine::create_depth_image() const
+{
+    return new Hiss::Image2D(allocator, *device._ptr,
+                             Hiss::Image2D::Info{
+                                     .format       = depth_format(),
+                                     .extent       = extent(),
+                                     .usage        = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                     .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+                                     .aspect       = vk::ImageAspectFlagBits::eDepth,
+                                     .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                             });
 }

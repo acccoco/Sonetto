@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
-#include "application.hpp"
+#include "engine.hpp"
+#include "proj_profile.hpp"
 #include <spdlog/spdlog.h>
 
 
@@ -29,33 +30,34 @@ int run(const std::string& app_name)
     try
     {
         // 初始化 framework
-        Hiss::Application frame(app_name);
-        frame.prepare();
-        spdlog::info("framework init ok.");
+        Hiss::Engine engine(app_name);
+        engine.prepare();
+        spdlog::info("[runner] framework init ok.");
 
         // 初始化应用
-        app_t app(frame);
+        app_t app(engine);
         app.prepare();
-        spdlog::info("app init ok.");
+        spdlog::info("[runner] app init ok.");
 
 
-        while (!frame.should_close())
+        while (!engine.should_close())
         {
-            if (frame.should_resize())
+            engine.poll_event();
+            if (engine.should_resize())
             {
-                frame.wait_idle();
-                frame.resize();
+                engine.wait_idle();
+                engine.resize();
                 app.resize();
                 continue;
             }
 
-            frame.perupdate();
+            engine.preupdate();
             app.update();
-            frame.postupdate();
+            engine.postupdate();
         }
-        frame.wait_idle();
+        engine.wait_idle();
         app.clean();
-        frame.clean();
+        engine.clean();
     }
     catch (const std::exception& e)
     {

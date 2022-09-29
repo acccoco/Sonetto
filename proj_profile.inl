@@ -13,7 +13,7 @@ const int32_t WINDOW_HEIGHT = 800;
 const struct
 {
     spdlog::level::level_enum level   = spdlog::level::trace;
-    std::string               pattern = "[%^%L%$] %v";
+    std::string               pattern = "%^%v%$";
 } default_log_config;
 
 
