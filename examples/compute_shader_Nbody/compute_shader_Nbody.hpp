@@ -1,6 +1,6 @@
 #pragma once
 #include <engine.hpp>
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 #include "vk/texture.hpp"
 #include "vk/pipeline.hpp"
 

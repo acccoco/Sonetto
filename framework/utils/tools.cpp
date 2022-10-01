@@ -6,14 +6,14 @@ Hiss::Stbi_8Bit_RAII::Stbi_8Bit_RAII(const std::string& file_path, int desired_c
 {
     stbi_set_flip_vertically_on_load(flip_vertical);
     data = stbi_load(file_path.c_str(), &width._value, &height._value, &channels_in_file._value, desired_channels);
-    if (data._value == nullptr)
+    if (data== nullptr)
         throw std::runtime_error("error: load image, file path: " + file_path);
 }
 
 
 Hiss::Stbi_8Bit_RAII::~Stbi_8Bit_RAII()
 {
-    stbi_image_free(data._value);
+    stbi_image_free(data);
 }
 
 

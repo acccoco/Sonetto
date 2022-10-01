@@ -3,7 +3,7 @@
 #include "vk/vk_common.hpp"
 
 
-RUN(HelloTriangle);
+RUN(HelloTriangle)
 
 
 void HelloTriangle::prepare()
@@ -34,8 +34,8 @@ void HelloTriangle::prepare()
 
 void HelloTriangle::init_pipeline()
 {
-    auto vertex_shader_module   = engine.shader_loader()->load(shader_vert_path, vk::ShaderStageFlagBits::eVertex);
-    auto fragment_shader_module = engine.shader_loader()->load(shader_frag_path, vk::ShaderStageFlagBits::eFragment);
+    auto vertex_shader_module   = engine.shader_loader().load(shader_vert_path, vk::ShaderStageFlagBits::eVertex);
+    auto fragment_shader_module = engine.shader_loader().load(shader_frag_path, vk::ShaderStageFlagBits::eFragment);
     _pipeline_template.shader_stages.push_back(vertex_shader_module);
     _pipeline_template.shader_stages.push_back(fragment_shader_module);
 
@@ -68,13 +68,13 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
 
 
     // color attachment layout transfer: undefined -> present （无需保留之前的内容）
-    frame.image2()->transfer_layout({},
-                                    Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                                      vk::AccessFlagBits::eColorAttachmentWrite},
-                                    command_buffer, vk::ImageLayout::eColorAttachmentOptimal, true);
+    frame.image().transfer_layout({},
+                                  Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                                    vk::AccessFlagBits::eColorAttachmentWrite},
+                                  command_buffer, vk::ImageLayout::eColorAttachmentOptimal, true);
 
     auto color_attach_info = vk::RenderingAttachmentInfo{
-            .imageView   = frame.image2()->view().vkview,
+            .imageView   = frame.image().view().vkview,
             .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
             .loadOp      = vk::AttachmentLoadOp::eClear,
             .storeOp     = vk::AttachmentStoreOp::eStore,
@@ -107,9 +107,9 @@ void HelloTriangle::record_command(vk::CommandBuffer command_buffer, const Frame
 
 
     /* color attachment layout transition: color -> present */
-    frame.image2()->transfer_layout(Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                                      vk::AccessFlagBits::eColorAttachmentWrite},
-                                    {}, command_buffer, vk::ImageLayout::ePresentSrcKHR);
+    frame.image().transfer_layout(Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
+                                                    vk::AccessFlagBits::eColorAttachmentWrite},
+                                  {}, command_buffer, vk::ImageLayout::ePresentSrcKHR);
 
 
     command_buffer.end();

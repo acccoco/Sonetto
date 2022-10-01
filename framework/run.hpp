@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include "engine.hpp"
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 #include <spdlog/spdlog.h>
 
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 #include "vk/vk_common.hpp"
 #include "vertex.hpp"
 #include "tiny_obj_loader.h"

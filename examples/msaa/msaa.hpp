@@ -2,7 +2,7 @@
 #include <array>
 #include "engine.hpp"
 #include "vk/pipeline.hpp"
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 #include "vk/model.hpp"
 #include "vk/framebuffer.hpp"
 #include "vk/texture.hpp"

@@ -5,12 +5,14 @@ Hiss::Swapchain::Swapchain(Device& device, Window& window, vk::SurfaceKHR surfac
       _window(window),
       _surface(surface)
 {
-    choose_present_format();
-    choose_present_mode();
-    choose_surface_extent();
+    _present_format = choose_present_format();
+    _present_mode   = choose_present_mode();
+    present_extent  = choose_surface_extent();
 
     spdlog::info("[swapchain] image format: {}", vk::to_string(_present_format.format));
     spdlog::info("[swapchain] colorspace: {}", vk::to_string(_present_format.colorSpace));
+    spdlog::info("[swapchain] present mode: {}", to_string(_present_mode));
+    spdlog::info("[swapchain] present extent: ({}, {})", present_extent._value.width, present_extent._value.height);
 
     create_swapchain();
     auto images = device.vkdevice().getSwapchainImagesKHR(_swapchain);
@@ -33,7 +35,7 @@ Hiss::Swapchain::~Swapchain()
 }
 
 
-void Hiss::Swapchain::choose_present_format()
+vk::SurfaceFormatKHR Hiss::Swapchain::choose_present_format()
 {
     std::vector<vk::SurfaceFormatKHR> format_list = _device.gpu().vkgpu().getSurfaceFormatsKHR(_surface);
     if (format_list.empty())
@@ -42,27 +44,25 @@ void Hiss::Swapchain::choose_present_format()
     for (const auto& format: format_list)
         if (format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
         {
-            _present_format = format;
-            return;
+            return format;
         }
-    _present_format = format_list.front();
+    return format_list.front();
 }
 
 
-void Hiss::Swapchain::choose_present_mode()
+vk::PresentModeKHR Hiss::Swapchain::choose_present_mode()
 {
     std::vector<vk::PresentModeKHR> present_mode_list = _device.gpu().vkgpu().getSurfacePresentModesKHR(_surface);
     for (const auto& present_mode: present_mode_list)
         if (present_mode == vk::PresentModeKHR::eMailbox)
         {
-            _present_mode = present_mode;
-            return;
+            return present_mode;
         }
-    _present_mode = vk::PresentModeKHR::eFifo;
+    return vk::PresentModeKHR::eFifo;
 }
 
 
-void Hiss::Swapchain::choose_surface_extent()
+vk::Extent2D Hiss::Swapchain::choose_surface_extent()
 {
     auto capability = _device.gpu().vkgpu().getSurfaceCapabilitiesKHR(_surface);
 
@@ -70,7 +70,7 @@ void Hiss::Swapchain::choose_surface_extent()
     /* 询问 glfw，当前窗口的大小是多少（pixel） */
     auto window_extent = _window.get_extent();
 
-    present_extent._value = vk::Extent2D{
+    return vk::Extent2D{
             .width  = std::clamp(window_extent.width, capability.minImageExtent.width, capability.maxImageExtent.width),
             .height = std::clamp(window_extent.height, capability.minImageExtent.height,
                                  capability.maxImageExtent.height),

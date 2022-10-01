@@ -11,7 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 # folder and profiles
 set(PROJ_SHADER_DIR ${CMAKE_SOURCE_DIR}/shader)
 set(PROJ_ASSETS_DIR ${CMAKE_SOURCE_DIR}/assets)
-configure_file(${CMAKE_SOURCE_DIR}/proj_profile.inl ${CMAKE_BINARY_DIR}/in/proj_profile.hpp)
+configure_file(${CMAKE_SOURCE_DIR}/proj_config.inl ${CMAKE_BINARY_DIR}/in/proj_config.hpp)
 include_directories(${CMAKE_BINARY_DIR}/in)
 set(PROJ_FRAMEWORK framework)
 

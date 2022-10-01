@@ -37,9 +37,9 @@ public:
 
 
 private:
-    void choose_present_format();
-    void choose_present_mode();
-    void choose_surface_extent();
+    vk::SurfaceFormatKHR choose_present_format();
+    vk::PresentModeKHR   choose_present_mode();
+    vk::Extent2D         choose_surface_extent();
     void create_swapchain();
 
 

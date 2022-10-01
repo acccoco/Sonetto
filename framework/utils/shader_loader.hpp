@@ -1,4 +1,6 @@
 #pragma once
+#include <filesystem>
+
 #include "utils/tools.hpp"
 #include "vk/vk_common.hpp"
 #include "vk/device.hpp"
@@ -21,8 +23,11 @@ public:
         }
     }
 
-    vk::PipelineShaderStageCreateInfo load(const std::string& file, vk::ShaderStageFlagBits stage)
+    vk::PipelineShaderStageCreateInfo load(const std::filesystem::path& file, vk::ShaderStageFlagBits stage)
     {
+        if (!std::filesystem::exists(file))
+            spdlog::error("shader file not exist: {}", file.c_str());
+
         std::vector<char>          code = read_file(file);
         vk::ShaderModuleCreateInfo info = {
                 .codeSize = code.size(),    // 单位是字节

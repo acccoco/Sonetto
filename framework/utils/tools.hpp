@@ -43,30 +43,6 @@ private:
 };
 
 
-/**
- * 指针的只读属性
- * 外部可以获取指针指向对象的引用
- */
-template<typename value_t, typename frient_t>
-class PropPtr
-{
-public:
-    friend frient_t;
-    PropPtr() = default;
-    explicit PropPtr(value_t* ptr)
-        : _ptr(ptr)
-    {}
-
-    inline value_t& operator()() const { return *this->_ptr; }
-
-
-private:
-    inline void operator=(value_t* new_ptr) { this->_ptr = new_ptr; }
-
-    value_t* _ptr;
-};
-
-
 namespace Hiss
 {
 
@@ -89,7 +65,8 @@ public:
     Prop<int, Stbi_8Bit_RAII>      width{0};
     Prop<int, Stbi_8Bit_RAII>      height{0};
     Prop<int, Stbi_8Bit_RAII>      channels_in_file{0};
-    Prop<stbi_uc*, Stbi_8Bit_RAII> data{nullptr};
+
+    stbi_uc* data = nullptr;
 };
 
 

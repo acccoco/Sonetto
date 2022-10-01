@@ -10,7 +10,7 @@ Hiss::Device::Device(GPU& physical_device_)
 {
     create_logical_device();
     create_command_pool();
-    fence_pool = new FencePool(*this);
+    _fence_pool = new FencePool(*this);
 }
 
 
@@ -61,17 +61,17 @@ void Hiss::Device::create_logical_device()
 
 void Hiss::Device::create_command_pool()
 {
-    command_pool = new CommandPool(*this, queue._value);
+    _command_pool = new CommandPool(*this, queue._value);
 
-    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) command_pool().pool_get(),
+    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool->pool_get(),
                          "default command pool");
 }
 
 
 Hiss::Device::~Device()
 {
-    DELETE(fence_pool._ptr);
-    DELETE(command_pool._ptr);
+    DELETE(_fence_pool);
+    DELETE(_command_pool);
     vkdevice().destroy();
 }
 
@@ -103,7 +103,7 @@ vk::DeviceMemory Hiss::Device::allocate_memory(const vk::MemoryRequirements&  me
 
 vk::Semaphore Hiss::Device::create_semaphore(bool signal)
 {
-    assert(fence_pool._ptr);
+    assert(_fence_pool);
 
     vk::Semaphore semaphore = vkdevice().createSemaphore({});
     if (!signal)

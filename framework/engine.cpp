@@ -1,7 +1,7 @@
 #include "engine.hpp"
 #include "utils/tools.hpp"
 #include "vk/vk_config.hpp"
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 
 
 /**
@@ -18,8 +18,8 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 void Hiss::Engine::resize()
 {
     _window->on_resize();
-    _swapchain    = Swapchain::resize(_swapchain, *device._ptr, *_window, _surface);
-    frame_manager = Hiss::FrameManager::resize(frame_manager._ptr, *device._ptr, *_swapchain);
+    _swapchain     = Swapchain::resize(_swapchain, *_device, *_window, _surface);
+    _frame_manager = Hiss::FrameManager::resize(_frame_manager, *_device, *_swapchain);
 }
 
 
@@ -53,19 +53,21 @@ void Hiss::Engine::prepare()
 
 
     // 创建 logical device
-    device = new Device(*_physical_device);
+    _device = new Device(*_physical_device);
     spdlog::info("[engine] device created.");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(device().vkdevice());
 
+    // 内存分配工具
     init_vma();
 
+
     // 创建 swapchain
-    _swapchain = new Swapchain(*device._ptr, *_window, _surface);
+    _swapchain = new Swapchain(*_device, *_window, _surface);
 
 
-    frame_manager = new Hiss::FrameManager(*device._ptr, *_swapchain);
+    _frame_manager = new Hiss::FrameManager(*_device, *_swapchain);
 
-    shader_loader = new ShaderLoader(*device._ptr);
+    _shader_loader = new ShaderLoader(*_device);
 }
 
 
@@ -90,14 +92,14 @@ void Hiss::Engine::init_vma()
 
 void Hiss::Engine::clean()
 {
-    DELETE(shader_loader._value);
-    DELETE(frame_manager._ptr);
+    DELETE(_shader_loader);
+    DELETE(_frame_manager);
     DELETE(_swapchain);
 
     // 销毁 vma 的分配器
     vmaDestroyAllocator(allocator);
 
-    DELETE(device._ptr);
+    DELETE(_device);
     DELETE(_physical_device);
     _instance->vkinstance().destroy(_surface);
     _instance->vkinstance().destroy(_debug_messenger);
@@ -108,19 +110,19 @@ void Hiss::Engine::clean()
 
 void Hiss::Engine::preupdate() noexcept
 {
-    frame_manager._ptr->acquire_frame();
+    _frame_manager->acquire_frame();
 }
 
 
 void Hiss::Engine::postupdate() noexcept
 {
-    frame_manager._ptr->submit_frame();
+    _frame_manager->submit_frame();
 }
 
 
 Hiss::Image2D* Hiss::Engine::create_depth_image() const
 {
-    return new Hiss::Image2D(allocator, *device._ptr,
+    return new Hiss::Image2D(allocator, *_device,
                              Hiss::Image2D::Info{
                                      .format       = depth_format(),
                                      .extent       = extent(),

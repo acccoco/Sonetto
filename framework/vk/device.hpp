@@ -32,17 +32,20 @@ private:
 
     // members =======================================================
 public:
-    Prop<Queue, Device>          queue{};
-    Prop<vk::Device, Device>     vkdevice{VK_NULL_HANDLE};
-    PropPtr<CommandPool, Device> command_pool{nullptr};
-    PropPtr<FencePool, Device>   fence_pool{nullptr};
+    Prop<Queue, Device>      queue{};
+    Prop<vk::Device, Device> vkdevice{VK_NULL_HANDLE};
 
-    [[nodiscard]] vk::Queue  vkqueue() const { return this->queue().queue; }
-    [[nodiscard]] const GPU& gpu() const { return _gpu; }
+    [[nodiscard]] vk::Queue    vkqueue() const { return this->queue().queue; }
+    [[nodiscard]] const GPU&   gpu() const { return _gpu; }
+    [[nodiscard]] CommandPool& command_pool() const { return *_command_pool; }
+    [[nodiscard]] FencePool&   fence_pool() const { return *_fence_pool; }
 
 
 private:
     GPU& _gpu;
+
+    CommandPool* _command_pool = nullptr;
+    FencePool*   _fence_pool   = nullptr;
 };
 }    // namespace Hiss
 

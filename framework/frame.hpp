@@ -66,8 +66,9 @@ public:
     }
 
 public:
-    Prop<Hiss::Image2D*, FrameManager> image2{nullptr};
-    Prop<uint32_t, Frame>              frame_id;
+    Prop<uint32_t, Frame> frame_id;
+
+    [[nodiscard]] Hiss::Image2D& image() const { return *_image; }
 
     // 后续想要使用 frame 内的 image，需要确保这个 semaphore 是 signaled
     Prop<vk::Semaphore, Frame> submit_semaphore{VK_NULL_HANDLE};
@@ -79,6 +80,8 @@ public:
 private:
     Device&    _device;
     FencePool& _fence_pool;
+
+    Hiss::Image2D* _image = nullptr;
 
     // frame id 与 swapchain image id 并不相同，frame id 是 frame in flight 中的 id
     uint32_t swapchain_image_index{};
@@ -104,7 +107,7 @@ public:
         spdlog::info("[frame manager] frame number: {}", frames._value.size());
 
         // 设定即将渲染的 frame
-        current_frame._ptr = frames._value.front();
+        _current_frame = frames._value.front();
     }
 
     ~FrameManager()
@@ -117,18 +120,18 @@ public:
     void acquire_frame()
     {
         // 等待 frame 的所有 fence，确保 frame 内的资源可用
-        current_frame._ptr->wait_clear_fence();
+        _current_frame->wait_clear_fence();
 
-        auto swapchain_image_index = this->_swapchain.acquire_image(current_frame._ptr->acquire_semaphore());
-        current_frame._ptr->swapchain_image_index = swapchain_image_index;
-        current_frame._ptr->image2._value         = _swapchain.get_image(swapchain_image_index);
+        auto swapchain_image_index            = this->_swapchain.acquire_image(_current_frame->acquire_semaphore());
+        _current_frame->swapchain_image_index = swapchain_image_index;
+        _current_frame->_image                = _swapchain.get_image(swapchain_image_index);
     }
 
     void submit_frame()
     {
-        assert(current_frame._ptr != nullptr);
-        _swapchain.submit_image(current_frame._ptr->swapchain_image_index, current_frame._ptr->submit_semaphore());
-        current_frame._ptr = frames._value[(current_frame._ptr->frame_id() + 1) % FRAMES_IN_FLIGHT];
+        assert(_current_frame != nullptr);
+        _swapchain.submit_image(_current_frame->swapchain_image_index, _current_frame->submit_semaphore());
+        _current_frame = frames._value[(_current_frame->frame_id() + 1) % FRAMES_IN_FLIGHT];
     }
 
     // 销毁原对象，返回新对象
@@ -141,11 +144,14 @@ public:
 
 public:
     Prop<std::vector<Frame*>, FrameManager> frames;
-    PropPtr<Frame, FrameManager>            current_frame{nullptr};
+
+    [[nodiscard]] Frame& current_frame() const { return *_current_frame; }
 
 
 private:
     Device&    _device;
     Swapchain& _swapchain;
+
+    Frame* _current_frame = nullptr;
 };
 }    // namespace Hiss

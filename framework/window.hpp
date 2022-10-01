@@ -18,10 +18,7 @@ public:
     }
 
 
-    [[nodiscard]] bool has_resized() const
-    {
-        return _user_data.resized;
-    }
+    [[nodiscard]] bool has_resized() const { return _user_data.resized; }
 
 
     [[nodiscard]] vk::SurfaceKHR create_surface(vk::Instance instance) const;
@@ -30,18 +27,15 @@ public:
     // 获取窗口的大小，单位是 pixel
     [[nodiscard]] vk::Extent2D get_extent() const;
 
-    [[nodiscard]] bool should_close() const
-    {
-        return glfwWindowShouldClose(this->window());
-    }
+    [[nodiscard]] bool should_close() const { return glfwWindowShouldClose(this->window); }
 
 
     // 处理窗口系统的各种事件：鼠标，键盘
     void poll_event() const
     {
         glfwPollEvents();
-        if (glfwGetKey(window(), GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window(), true);
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
     }
 
 
@@ -52,10 +46,7 @@ public:
 private:
     static void callback_window_resize(GLFWwindow* window, int width, int height);
 
-    void clear_resized_state()
-    {
-        _user_data.resized = false;
-    }
+    void clear_resized_state() { _user_data.resized = false; }
 
     /// 等待退出最小化模式
     void wait_exit_minimized() const;
@@ -65,7 +56,7 @@ private:
 
 
 public:
-    Prop<GLFWwindow*, Window> window{nullptr};
+    GLFWwindow* window = nullptr;
 
 
 private:

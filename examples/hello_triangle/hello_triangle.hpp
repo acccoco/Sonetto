@@ -1,7 +1,7 @@
 #pragma once
 #include "engine.hpp"
 #include "vk/vertex.hpp"
-#include "proj_profile.hpp"
+#include "proj_config.hpp"
 #include "vk/pipeline.hpp"
 
 
@@ -45,6 +45,8 @@ private:
 
     const std::string shader_vert_path = SHADER("hello_triangle/hello_triangle.vert.spv");
     const std::string shader_frag_path = SHADER("hello_triangle/hello_triangle.frag.spv");
+    const std::filesystem::path shader_vert_path2 = shader_dir / "hello_triangle/hello_triangle.vert.spv";
+    const std::filesystem::path shader_frag_path2 = shader_dir / "hello_triangle/hello_triangle.frag.spv";
 
 
     Hiss::PipelineTemplate _pipeline_template;
@@ -54,7 +56,7 @@ private:
     Hiss::IndexBuffer2*                       _index_buffer{};
     Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer{};
 
-    Hiss::Image2D* _depth_image;
+    Hiss::Image2D* _depth_image{};
 
 
     std::vector<FramePayload> _payloads = {};

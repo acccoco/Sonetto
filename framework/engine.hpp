@@ -50,31 +50,31 @@ public:
     Prop<std::string, Engine> name{};
     Prop<Timer, Engine>       timer{};
 
-    PropPtr<Device, Engine>       device{nullptr};
-    PropPtr<FrameManager, Engine> frame_manager{nullptr};
-    Prop<ShaderLoader*, Engine>   shader_loader{nullptr};
 
-
-    [[nodiscard]] vk::Extent2D extent() const { return this->_swapchain->present_extent(); }
-    [[nodiscard]] vk::Format   color_format() const { return this->_swapchain->color_format(); }
-    [[nodiscard]] vk::Device   vkdevice() const { return this->device().vkdevice(); }
-    [[nodiscard]] vk::Format   depth_format() const { return this->device._ptr->gpu().depth_stencil_format(); }
-    [[nodiscard]] Frame&       current_frame() const { return frame_manager._ptr->current_frame(); }
+    [[nodiscard]] vk::Extent2D  extent() const { return this->_swapchain->present_extent(); }
+    [[nodiscard]] vk::Format    color_format() const { return this->_swapchain->color_format(); }
+    [[nodiscard]] vk::Device    vkdevice() const { return this->device().vkdevice(); }
+    [[nodiscard]] vk::Format    depth_format() const { return this->_device->gpu().depth_stencil_format(); }
+    [[nodiscard]] Frame&        current_frame() const { return _frame_manager->current_frame(); }
+    [[nodiscard]] Device&       device() const { return *_device; }
+    [[nodiscard]] FrameManager& frame_manager() const { return *_frame_manager; }
+    [[nodiscard]] ShaderLoader& shader_loader() const { return *_shader_loader; }
 
 
     VmaAllocator allocator{};
 
 
-protected:
+private:
     Instance*      _instance        = nullptr;
     vk::SurfaceKHR _surface         = nullptr;
     GPU*           _physical_device = nullptr;
     Swapchain*     _swapchain       = nullptr;
+    Window*        _window          = nullptr;
+    Device*        _device          = nullptr;
+    FrameManager*  _frame_manager   = nullptr;
+    ShaderLoader*  _shader_loader   = nullptr;
 
 
-private:
     vk::DebugUtilsMessengerEXT _debug_messenger = VK_NULL_HANDLE;
-
-    Window* _window = nullptr;
 };
 }    // namespace Hiss
