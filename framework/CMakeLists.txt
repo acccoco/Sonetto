@@ -45,7 +45,7 @@ set(HEADER_FILES
         vk/gpu.hpp
         engine.hpp
         vk/pipeline.hpp
-        vk/command.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame.hpp utils/semaphore_pool.hpp vk/vk_config.hpp run.hpp vk/queue.hpp)
+        vk/command.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame.hpp utils/semaphore_pool.hpp vk/vk_config.hpp run.hpp vk/queue.hpp application.hpp)
 
 # source files
 set(SOURCE_FILES

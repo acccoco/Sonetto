@@ -126,12 +126,14 @@ private:
 };
 
 
-class IndexBuffer2 : public DeviceBuffer
+class IndexBuffer2 : public Buffer2
 {
 public:
+    // memory flags 表示：DEVICE_LOCAL
     IndexBuffer2(Device& device, VmaAllocator allocator, const std::vector<uint32_t>& indices)
-        : DeviceBuffer(allocator, sizeof(uint32_t) * indices.size(),
-                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT),
+        : Buffer2(allocator, sizeof(uint32_t) * indices.size(),
+                  vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+                  VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT),
           index_num(indices.size())
     {
         // 创建 stage buffer，向其中写入数据
@@ -141,7 +143,7 @@ public:
 
         // 立即向 indices 中写入
         OneTimeCommand command_buffer{device, device.command_pool()};
-        command_buffer().copyBuffer(stage_buffer.buffer(), buffer(), {vk::BufferCopy{.size = size()}});
+        command_buffer().copyBuffer(stage_buffer.vkbuffer(), vkbuffer(), {vk::BufferCopy{.size = size()}});
         command_buffer.exec();
     }
 
@@ -152,12 +154,14 @@ public:
 
 
 template<typename VertexType>
-class VertexBuffer2 : public DeviceBuffer
+class VertexBuffer2 : public Buffer2
 {
 public:
+    // memory flags: DEVICE_LOCAL
     VertexBuffer2(Device& device, VmaAllocator allocator, const std::vector<VertexType>& vertices)
-        : DeviceBuffer(allocator, sizeof(VertexType) * vertices.size(),
-                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
+        : Buffer2(allocator, sizeof(VertexType) * vertices.size(),
+                  vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
+                  VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT),
           vertex_num(vertices.size())
     {
         // 创建 stage buffer，向其中写入数据
@@ -167,7 +171,7 @@ public:
 
         // 立即向 vertices bufffer 中写入
         OneTimeCommand command_buffer{device, device.command_pool()};
-        command_buffer().copyBuffer(stage_buffer.buffer(), buffer(), {vk::BufferCopy{.size = size()}});
+        command_buffer().copyBuffer(stage_buffer.vkbuffer(), vkbuffer(), {vk::BufferCopy{.size = size()}});
         command_buffer.exec();
     }
 

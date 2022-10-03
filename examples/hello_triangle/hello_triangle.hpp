@@ -3,35 +3,75 @@
 #include "vk/vertex.hpp"
 #include "proj_config.hpp"
 #include "vk/pipeline.hpp"
+#include "application.hpp"
 
 
-class HelloTriangle
+namespace Hello
+{
+struct FramePayload
+{
+    vk::CommandBuffer command_buffer = VK_NULL_HANDLE;
+};
+
+
+struct UniformData
+{
+    alignas(16) glm::vec3 color1 = {0.8f, 0.0f, 0.0f};
+    alignas(16) glm::vec3 color2 = {0.0f, 0.5f, 0.0f};
+    alignas(16) glm::vec3 color3 = {0.0f, 0.0f, 0.5f};
+    float single                 = 0.1f;
+    alignas(16) float colors[3]  = {0.3f, 0.3f, 0.5f};
+    alignas(16) float colors1[3] = {0.3f, 0.3f, 0.5f};
+    alignas(16) float colors2[3] = {0.5f, 0.3f, 0.5f};
+};
+
+
+class App : Hiss::IApplication
 {
 public:
-    explicit HelloTriangle(Hiss::Engine& engine)
+    explicit App(Hiss::Engine& engine)
         : engine(engine)
     {}
 
 
-    void prepare();
-    void update() noexcept;
-    void resize();
-    void clean();
+    void prepare() final;
+    void update() noexcept final;
+    void resize() final;
+    void clean() final;
 
 
 private:
-    struct FramePayload
-    {
-        vk::CommandBuffer command_buffer = VK_NULL_HANDLE;
-    };
-
-
-    void init_pipeline();
+    void create_pipeline();
     void record_command(vk::CommandBuffer command_buffer, const FramePayload& payload, const Hiss::Frame& frame);
 
+    // 初始化 descriptor set layout ，创建descriptor set，将 descriptor set 与 uniform buffer 绑定起来
+    void init_descriptor_set();
+
+    // 创建 UBO，并写入初始值
+    void create_uniform_buffer();
 
 private:
     Hiss::Engine& engine;
+
+
+    Hiss::PipelineTemplate  _pipeline_template;
+    vk::Pipeline            _pipeline;
+    vk::PipelineLayout      _pipeline_layout;
+    vk::DescriptorSetLayout _descriptor_set_layout;
+    vk::DescriptorSet       _descriptor_set;
+
+    Hiss::IndexBuffer2*                       _index_buffer{};
+    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer{};
+
+    Hiss::Image2D* _depth_image{};
+
+    UniformData          _ubo;
+    Hiss::UniformBuffer* _uniform_buffer{};
+
+    std::vector<FramePayload> _payloads = {};
+
+
+#pragma region 数据
 
     // 顶点数据
     std::vector<Hiss::Vertex2DColor> vertices = {
@@ -43,21 +83,18 @@ private:
     // 模型的顶点索引
     std::vector<uint32_t> indices = {0, 1, 2};
 
-    const std::string shader_vert_path = SHADER("hello_triangle/hello_triangle.vert.spv");
-    const std::string shader_frag_path = SHADER("hello_triangle/hello_triangle.frag.spv");
-    const std::filesystem::path shader_vert_path2 = shader_dir / "hello_triangle/hello_triangle.vert.spv";
-    const std::filesystem::path shader_frag_path2 = shader_dir / "hello_triangle/hello_triangle.frag.spv";
+    const std::filesystem::path shader_vert_path2 = shader_dir / "hello_triangle/hello_triangle.vert";
+    const std::filesystem::path shader_frag_path2 = shader_dir / "hello_triangle/hello_triangle.frag";
 
 
-    Hiss::PipelineTemplate _pipeline_template;
-    vk::Pipeline           _pipeline;
-    vk::PipelineLayout     _pipeline_layout;
+    // descriptor set 的布局详情
+    const std::vector<vk::DescriptorSetLayoutBinding> descriptor_bindings = {{{
+            0,
+            vk::DescriptorType::eUniformBuffer,
+            1,
+            vk::ShaderStageFlagBits::eFragment,
+    }}};
 
-    Hiss::IndexBuffer2*                       _index_buffer{};
-    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer{};
-
-    Hiss::Image2D* _depth_image{};
-
-
-    std::vector<FramePayload> _payloads = {};
+#pragma endregion
 };
+}    // namespace Hello

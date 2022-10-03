@@ -5,7 +5,7 @@
 APP_RUN(MSAA)
 
 
-void MSAA::prepare()
+void MSAA::App::prepare()
 {
     Engine::prepare();
     spdlog::info("[MSAA] prepare");
@@ -30,7 +30,7 @@ void MSAA::prepare()
 }
 
 
-void MSAA::clean()
+void MSAA::App::clean()
 {
     spdlog::info("[MSAA] clean");
 
@@ -51,7 +51,7 @@ void MSAA::clean()
 }
 
 
-void MSAA::resize()
+void MSAA::App::resize()
 {
     Engine::resize();
     spdlog::info("[MSAA] on_resize");
@@ -62,7 +62,7 @@ void MSAA::resize()
 }
 
 
-void MSAA::msaa_framebuffer_prepare()
+void MSAA::App::msaa_framebuffer_prepare()
 {
     spdlog::info("[MSAA] create framebuffers");
 
@@ -107,7 +107,7 @@ void MSAA::msaa_framebuffer_prepare()
 }
 
 
-void MSAA::msaa_framebuffer_clean()
+void MSAA::App::msaa_framebuffer_clean()
 {
     spdlog::info("[MSAA] framebuffers clean");
 
@@ -121,7 +121,7 @@ void MSAA::msaa_framebuffer_clean()
 }
 
 
-void MSAA::render_pass_prepare()
+void MSAA::App::render_pass_prepare()
 {
     spdlog::info("[MSAA] render pass prepare");
 
@@ -192,14 +192,14 @@ void MSAA::render_pass_prepare()
 }
 
 
-void MSAA::render_pass_clean()
+void MSAA::App::render_pass_clean()
 {
     spdlog::info("[MSAA] render pass clean");
     _device->vkdevice().destroy(_msaa_renderpass);
 }
 
 
-void MSAA::pipeline_clean()
+void MSAA::App::pipeline_clean()
 {
     spdlog::info("[MSAA] pipeline clean");
     _device->vkdevice().destroy(_pipeline_layout);
@@ -207,7 +207,7 @@ void MSAA::pipeline_clean()
 }
 
 
-void MSAA::pipeline_prepare()
+void MSAA::App::pipeline_prepare()
 {
     spdlog::info("[MSAA] pipeline create");
 
@@ -236,7 +236,7 @@ void MSAA::pipeline_prepare()
 }
 
 
-void MSAA::update(double delte_time) noexcept
+void MSAA::App::update(double delte_time) noexcept
 {
     Hiss::Engine::preupdate(delte_time);
     prepare_frame();
@@ -271,7 +271,7 @@ void MSAA::update(double delte_time) noexcept
 }
 
 
-void MSAA::descriptor_set_layout_prepare()
+void MSAA::App::descriptor_set_layout_prepare()
 {
     spdlog::info("[MSAA] descriptor set layout prepare");
 
@@ -303,7 +303,7 @@ void MSAA::descriptor_set_layout_prepare()
 /**
  * descriptor set layout, descriptor set, uniform buffer, texture sampler
  */
-void MSAA::descriptor_set_prepare()
+void MSAA::App::descriptor_set_prepare()
 {
     spdlog::info("[MSAA] descriptor set prepare");
 
@@ -368,7 +368,7 @@ void MSAA::descriptor_set_prepare()
 }
 
 
-void MSAA::descriptor_clean()
+void MSAA::App::descriptor_clean()
 {
     spdlog::info("[MSAA] descriptor set clear");
 
@@ -380,7 +380,7 @@ void MSAA::descriptor_clean()
 }
 
 
-void MSAA::uniform_buffer_prepare()
+void MSAA::App::uniform_buffer_prepare()
 {
     spdlog::info("[MSAA] uniform buffer create");
 
@@ -393,7 +393,7 @@ void MSAA::uniform_buffer_prepare()
 }
 
 
-void MSAA::uniform_buffer_clean()
+void MSAA::App::uniform_buffer_clean()
 {
     spdlog::info("[MSAA] uniform buffer clear");
 
@@ -404,7 +404,7 @@ void MSAA::uniform_buffer_clean()
 }
 
 
-void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_image_index)
+void MSAA::App::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_image_index)
 {
     command_buffer.begin(vk::CommandBufferBeginInfo{});
 
@@ -493,7 +493,7 @@ void MSAA::command_record(vk::CommandBuffer command_buffer, uint32_t swapchain_i
 }
 
 
-void MSAA::uniform_update()
+void MSAA::App::uniform_update()
 {
     assert(_uniform_buffers[current_frame_index()] != nullptr);
 

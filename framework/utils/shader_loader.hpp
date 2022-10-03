@@ -25,10 +25,11 @@ public:
 
     vk::PipelineShaderStageCreateInfo load(const std::filesystem::path& file, vk::ShaderStageFlagBits stage)
     {
-        if (!std::filesystem::exists(file))
-            spdlog::error("shader file not exist: {}", file.c_str());
+        const std::filesystem::path spv_file_path = file.string() + ".spv";
+        if (!std::filesystem::exists(spv_file_path))
+            spdlog::error("shader file not exist: {}", spv_file_path.string());
 
-        std::vector<char>          code = read_file(file);
+        std::vector<char>          code = read_file(spv_file_path);
         vk::ShaderModuleCreateInfo info = {
                 .codeSize = code.size(),    // 单位是字节
 

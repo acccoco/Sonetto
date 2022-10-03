@@ -7,7 +7,7 @@
 APP_RUN(ComputeShaderNBody)
 
 
-void ComputeShaderNBody::prepare()
+void NBody::App::prepare()
 {
     Hiss::Engine::prepare();
     spdlog::info("[NBody] prepare");
@@ -23,7 +23,7 @@ void ComputeShaderNBody::prepare()
 }
 
 
-void ComputeShaderNBody::clean()
+void NBody::App::clean()
 {
     spdlog::info("[NBody] clean");
 
@@ -38,13 +38,13 @@ void ComputeShaderNBody::clean()
 }
 
 
-void ComputeShaderNBody::resize()
+void NBody::App::resize()
 {
     Hiss::Engine::resize();
 }
 
 
-void ComputeShaderNBody::compute_prepare()
+void NBody::App::compute_prepare()
 {
     assert(num_particles);
 
@@ -54,7 +54,7 @@ void ComputeShaderNBody::compute_prepare()
                                                                 / sizeof(glm::vec4));
     compute.workgroup_num    = num_particles / compute.workgroup_size;
     spdlog::info("[NBody] workgroup size: {}, workgroup count: {}, shared data size: {}", compute.workgroup_size,
-                  compute.workgroup_num, compute.shared_data_size);
+                 compute.workgroup_num, compute.shared_data_size);
 
 
     compute_uniform_buffer_prepare();
@@ -77,7 +77,7 @@ void ComputeShaderNBody::compute_prepare()
 }
 
 
-void ComputeShaderNBody::graphics_prepare()
+void NBody::App::graphics_prepare()
 {
     spdlog::info("[NBody] graphics prepare");
 
@@ -93,7 +93,7 @@ void ComputeShaderNBody::graphics_prepare()
 }
 
 
-void ComputeShaderNBody::descriptor_pool_prepare()
+void NBody::App::descriptor_pool_prepare()
 {
     /**
      * compute shader: 1 uniform buffer, 1 storage buffer
@@ -122,7 +122,7 @@ void ComputeShaderNBody::descriptor_pool_prepare()
 /**
  * 创建两个 compute pipeline
  */
-void ComputeShaderNBody::compute_pipeline_prepare()
+void NBody::App::compute_pipeline_prepare()
 {
     /* pipeline layout */
     compute.pipeline_layout = _device->vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
@@ -196,7 +196,7 @@ void ComputeShaderNBody::compute_pipeline_prepare()
 /**
  * 创建 descriptor set，并将其绑定到 uniform buffer 和 storage buffer
  */
-void ComputeShaderNBody::compute_descriptor_prepare()
+void NBody::App::compute_descriptor_prepare()
 {
     /* descriptor set layout */
     compute.descriptor_set_layout = _device->vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
@@ -246,7 +246,7 @@ void ComputeShaderNBody::compute_descriptor_prepare()
 /**
  * 录制命令
  */
-void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffer, vk::DescriptorSet descriptor_set)
+void NBody::App::compute_command_prepare(vk::CommandBuffer command_buffer, vk::DescriptorSet descriptor_set)
 {
     assert(storage_buffer);
     command_buffer.begin(vk::CommandBufferBeginInfo{});
@@ -317,7 +317,7 @@ void ComputeShaderNBody::compute_command_prepare(vk::CommandBuffer command_buffe
 }
 
 
-void ComputeShaderNBody::particles_prepare()
+void NBody::App::particles_prepare()
 {
     spdlog::info("[NBody] particles craete");
 
@@ -375,7 +375,7 @@ void ComputeShaderNBody::particles_prepare()
 }
 
 
-void ComputeShaderNBody::storage_buffer_prepare()
+void NBody::App::storage_buffer_prepare()
 {
     assert(!particles.empty());
     spdlog::debug("[NBody] storage buffer prepare");
@@ -421,7 +421,7 @@ void ComputeShaderNBody::storage_buffer_prepare()
 }
 
 
-void ComputeShaderNBody::graphics_uniform_buffer_prepare()
+void NBody::App::graphics_uniform_buffer_prepare()
 {
     graphics.ubo.projection = glm::perspective(glm::radians(60.f),
                                                static_cast<float>(_swapchain->get_extent().width)
@@ -443,7 +443,7 @@ void ComputeShaderNBody::graphics_uniform_buffer_prepare()
 }
 
 
-void ComputeShaderNBody::compute_uniform_buffer_prepare()
+void NBody::App::compute_uniform_buffer_prepare()
 {
     assert(num_particles);
 
@@ -463,7 +463,7 @@ void ComputeShaderNBody::compute_uniform_buffer_prepare()
 }
 
 
-void ComputeShaderNBody::graphics_pipeline_prepare()
+void NBody::App::graphics_pipeline_prepare()
 {
     /* shader stage */
     graphics.pipeline_state.shader_stage_add(
@@ -523,7 +523,7 @@ void ComputeShaderNBody::graphics_pipeline_prepare()
 }
 
 
-void ComputeShaderNBody::graphics_descriptor_set_prepare()
+void NBody::App::graphics_descriptor_set_prepare()
 {
     /* descriptor set layout */
     graphics.descriptor_set_layout = _device->vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
@@ -583,15 +583,15 @@ void ComputeShaderNBody::graphics_descriptor_set_prepare()
 }
 
 
-void ComputeShaderNBody::graphics_load_assets()
+void NBody::App::graphics_load_assets()
 {
     graphics.tex_particle = new Hiss::Texture(*_device, graphics.tex_particle_path, false);
     graphics.tex_gradient = new Hiss::Texture(*_device, graphics.tex_gradient_path, false);
 }
 
 
-void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffer, vk::Framebuffer framebuffer,
-                                                 vk::DescriptorSet descriptor_set, vk::Image color_image)
+void NBody::App::graphcis_command_record(vk::CommandBuffer command_buffer, vk::Framebuffer framebuffer,
+                                         vk::DescriptorSet descriptor_set, vk::Image color_image)
 {
     command_buffer.begin(vk::CommandBufferBeginInfo{});
 
@@ -601,8 +601,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
     };
 
 
-    bool need_transfer_compute =
-            !Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute());
+    bool need_transfer_compute = !Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute());
 
     /* execution barrier(depth attachment) */
     command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests,
@@ -698,7 +697,7 @@ void ComputeShaderNBody::graphcis_command_record(vk::CommandBuffer command_buffe
 }
 
 
-void ComputeShaderNBody::update(double delta_time) noexcept
+void NBody::App::update(double delta_time) noexcept
 {
     delta_time /= 1000;
     Hiss::Engine::preupdate(delta_time);
@@ -771,7 +770,7 @@ void ComputeShaderNBody::update(double delta_time) noexcept
 }
 
 
-void ComputeShaderNBody::compute_uniform_update(Hiss::Buffer& buffer, float delta_time)
+void NBody::App::compute_uniform_update(Hiss::Buffer& buffer, float delta_time)
 {
     compute.ubo.delta_time = delta_time;
 
@@ -779,7 +778,7 @@ void ComputeShaderNBody::compute_uniform_update(Hiss::Buffer& buffer, float delt
 }
 
 
-void ComputeShaderNBody::compute_clean()
+void NBody::App::compute_clean()
 {
     spdlog::info("[NBody] compute clean");
 
@@ -798,7 +797,7 @@ void ComputeShaderNBody::compute_clean()
 }
 
 
-void ComputeShaderNBody::graphics_clean()
+void NBody::App::graphics_clean()
 {
     spdlog::info("[NBody] graphics clean");
 
@@ -820,7 +819,7 @@ void ComputeShaderNBody::graphics_clean()
 }
 
 
-void ComputeShaderNBody::graphics_uniform_update(Hiss::Buffer& buffer, float delta_time)
+void NBody::App::graphics_uniform_update(Hiss::Buffer& buffer, float delta_time)
 {
     // IMPL，最好是检测到 window event 时更新
     // IMPL window 大小改变时，需要改变 ubo 的 screen dim

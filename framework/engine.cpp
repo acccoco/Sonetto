@@ -61,6 +61,9 @@ void Hiss::Engine::prepare()
     init_vma();
 
 
+    create_descriptor_pool();
+
+
     // 创建 swapchain
     _swapchain = new Swapchain(*_device, *_window, _surface);
 
@@ -99,6 +102,8 @@ void Hiss::Engine::clean()
     // 销毁 vma 的分配器
     vmaDestroyAllocator(allocator);
 
+    vkdevice().destroy(descriptor_pool._value);
+
     DELETE(_device);
     DELETE(_physical_device);
     _instance->vkinstance().destroy(_surface);
@@ -131,4 +136,18 @@ Hiss::Image2D* Hiss::Engine::create_depth_image() const
                                      .aspect       = vk::ImageAspectFlagBits::eDepth,
                                      .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
                              });
+}
+
+
+void Hiss::Engine::create_descriptor_pool()
+{
+    descriptor_pool._value = vkdevice().createDescriptorPool(vk::DescriptorPoolCreateInfo{
+            .maxSets       = descriptor_set_max_number,
+            .poolSizeCount = static_cast<uint32_t>(pool_size.size()),
+            .pPoolSizes    = pool_size.data(),
+    });
+
+    spdlog::info("[descriptor pool] descriptor set max number: {}", descriptor_set_max_number);
+    for (auto& item: pool_size)
+        spdlog::info("[descriptor pool] max number: ({}, {})", to_string(item.type), item.descriptorCount);
 }

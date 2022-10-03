@@ -30,6 +30,12 @@ public:
     };
 
 
+#pragma region 构造析构
+
+    /**
+     * 创建 image 以及 image view 的资源
+     * 需要手动指定 image 的 usage 以及内存的 usage flag
+     */
     Image2D(VmaAllocator allocator, Device& device, const Info& info);
 
     // 外部已经创建好了 image
@@ -39,11 +45,18 @@ public:
 
     ~Image2D();
 
+#pragma endregion
+
+
+#pragma region 成员访问
 
     // 访问某个 image view
     View view(uint32_t base_mip = 0, uint32_t mip_count = 1);
 
+#pragma endregion
 
+
+#pragma region 内存屏障
     // 立刻执行 layout transfer，会检查连续的相同 layout，减少 gpu 的调用次数
     void transfer_layout_im(vk::ImageLayout new_layout, uint32_t base_level = 0, uint32_t level_count = 1);
 
@@ -60,6 +73,9 @@ public:
     void transfer_layout(std::optional<StageAccess> src, std::optional<StageAccess> dst,
                          vk::CommandBuffer command_buffer, vk::ImageLayout new_layout, bool clear = false,
                          uint32_t base_level = 0, uint32_t level_count = 1);
+
+#pragma endregion
+
 
 private:
     // 创建 image view

@@ -12,17 +12,20 @@ inline void init_log()
 }
 
 
-/**********
-Application 类的格式规范
+inline void log_begin_region(const std::string& name)
+{
+    spdlog::info("");
+    spdlog::info("{} begin ===========================================================", name);
+}
 
-class App {
-public:
-    void prepare();
-    void resize();
-    void update();
-    void clean();
-};
-************/
+
+inline void log_end_region(const std::string& name)
+{
+    spdlog::info("{} end =============================================================", name);
+    spdlog::info("");
+}
+
+
 template<typename app_t>
 int run(const std::string& app_name)
 {
@@ -30,34 +33,47 @@ int run(const std::string& app_name)
     try
     {
         // 初始化 framework
+        log_begin_region("engine init");
         Hiss::Engine engine(app_name);
         engine.prepare();
-        spdlog::info("[runner] framework init ok.");
+        log_end_region("engine init");
+
 
         // 初始化应用
-        app_t app(engine);
-        app.prepare();
-        spdlog::info("[runner] app init ok.");
+        log_begin_region("application init");
+        auto* app = new app_t(engine);
+        app->prepare();
+        log_end_region("application init");
 
 
+        // 主循环
         while (!engine.should_close())
         {
             engine.poll_event();
+
             if (engine.should_resize())
             {
+                log_begin_region("resize");
                 engine.wait_idle();
                 engine.resize();
-                app.resize();
+                app->resize();
+                log_end_region("resize");
                 continue;
             }
 
             engine.preupdate();
-            app.update();
+            app->update();
             engine.postupdate();
         }
+
+
+        // 退出
+        log_begin_region("exit");
         engine.wait_idle();
-        app.clean();
+        app->clean();
+        delete app;
         engine.clean();
+        log_end_region("exit");
     }
     catch (const std::exception& e)
     {

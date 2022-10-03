@@ -9,18 +9,29 @@
 #include "utils/tools.hpp"
 
 
+namespace MSAA
+{
+
+struct UniformBlock
+{
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4(proj);
+};
+
+
 /**
  * MSAA 实现：
  * - framebuffer 需要有 3 个 attachment：color，depth，resolve
  * - color 和 depth attachment 都需要多个 sample
  */
-class MSAA : public Hiss::Engine
+class App : public Hiss::Engine
 {
 public:
-    MSAA()
-        : Hiss::Engine("msaa")
+    App()
+        : Engine("msaa")
     {}
-    ~MSAA() override = default;
+    ~App() override = default;
 
 
 private:
@@ -31,12 +42,16 @@ private:
 
     void render_pass_prepare();
     void render_pass_clean();
+
     void pipeline_prepare();
     void pipeline_clean();
+
     void msaa_framebuffer_prepare();
     void msaa_framebuffer_clean();
+
     void uniform_buffer_prepare();
     void uniform_buffer_clean();
+
     void descriptor_set_layout_prepare();
     void descriptor_set_prepare();
     void descriptor_clean();
@@ -48,14 +63,6 @@ private:
     // members =======================================================
 
 
-    struct UniformBlock
-    {
-        alignas(16) glm::mat4 model;
-        alignas(16) glm::mat4 view;
-        alignas(16) glm::mat4(proj);
-    };
-
-
 public:
     const std::string vert_shader_path = SHADER("msaa/msaa.vert.spv");
     const std::string frag_shader_path = SHADER("msaa/msaa.frag.spv");
@@ -63,7 +70,7 @@ public:
     const std::string model_path       = MODEL("viking_room/viking_room.obj");
 
     /* framebuffer attachment 的清除值，顺序要和 framebuffer 一致。不需要清除 resolve buffer */
-    const std::array<vk::ClearValue, 2> clear_values = {
+    const std::__1::array<vk::ClearValue, 2> clear_values = {
             vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.2f, 0.2f, 0.2f, 1.f}}},
             vk::ClearValue{.depthStencil = {1.f, 0}},
     };
@@ -77,17 +84,17 @@ public:
 
 
 private:
-    vk::RenderPass                 _msaa_renderpass       = VK_NULL_HANDLE;
-    vk::Pipeline                   _pipeline              = VK_NULL_HANDLE;
-    Hiss::PipelineTemplate         _pipeline_state        = {};
-    vk::PipelineLayout             _pipeline_layout       = VK_NULL_HANDLE;
-    vk::DescriptorSetLayout        _descriptor_set_layout = VK_NULL_HANDLE;
-    vk::DescriptorPool             _descriptor_pool       = VK_NULL_HANDLE;
-    std::vector<vk::DescriptorSet> _descriptor_sets       = {};
+    vk::RenderPass                      _msaa_renderpass       = VK_NULL_HANDLE;
+    vk::Pipeline                        _pipeline              = VK_NULL_HANDLE;
+    Hiss::PipelineTemplate              _pipeline_state        = {};
+    vk::PipelineLayout                  _pipeline_layout       = VK_NULL_HANDLE;
+    vk::DescriptorSetLayout             _descriptor_set_layout = VK_NULL_HANDLE;
+    vk::DescriptorPool                  _descriptor_pool       = VK_NULL_HANDLE;
+    std::__1::vector<vk::DescriptorSet> _descriptor_sets       = {};
 
     vk::SampleCountFlagBits _sample = vk::SampleCountFlagBits::e1;
 
-    std::array<Hiss::Buffer*, IN_FLIGHT_CNT> _uniform_buffers = {};
+    std::__1::array<Hiss::Buffer*, IN_FLIGHT_CNT> _uniform_buffers = {};
 
     Hiss::Image*                     _msaa_color_image  = nullptr;
     Hiss::Image*                     _msaa_depth_image  = nullptr;
@@ -98,3 +105,4 @@ private:
     Hiss::Mesh*    _mesh    = nullptr;
     Hiss::Texture* _texture = nullptr;
 };
+}    // namespace MSAA

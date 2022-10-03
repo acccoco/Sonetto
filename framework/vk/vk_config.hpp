@@ -99,13 +99,13 @@ inline vk::PhysicalDeviceFeatures get_device_features()
             .sampleRateShading  = VK_TRUE,
             .samplerAnisotropy  = VK_TRUE,
     };
-};
+}
 
 
 // validation 的 debug 回调函数
-static vk::Bool32 validation_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-                                            VkDebugUtilsMessageTypeFlagsEXT             message_type,
-                                            const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
+static vk::Bool32 validation_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+                                            VkDebugUtilsMessageTypeFlagsEXT,
+                                            const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void*)
 {
     switch (message_severity)
     {
@@ -122,6 +122,7 @@ static vk::Bool32 validation_debug_callback(VkDebugUtilsMessageSeverityFlagBitsE
 }
 
 
+// validation debug log 的级别
 const vk::DebugUtilsMessengerCreateInfoEXT _debug_utils_messenger_info = {
         .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
                          | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
@@ -132,5 +133,15 @@ const vk::DebugUtilsMessengerCreateInfoEXT _debug_utils_messenger_info = {
         .pfnUserCallback = validation_debug_callback,
 };
 
+
+// ==============================================================
+// descriptor pool 相关的配置
+// ==============================================================
+const uint32_t                            descriptor_set_max_number = 16;
+const std::vector<vk::DescriptorPoolSize> pool_size                 = {{
+        {vk::DescriptorType::eUniformBuffer, 64},
+        {vk::DescriptorType::eStorageBuffer, 64},
+        {vk::DescriptorType::eCombinedImageSampler, 64},
+}};
 
 }    // namespace Hiss

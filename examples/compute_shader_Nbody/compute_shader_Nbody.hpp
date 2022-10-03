@@ -5,6 +5,9 @@
 #include "vk/pipeline.hpp"
 
 
+namespace NBody
+{
+
 struct GraphcisUBO
 {
     alignas(16) glm::mat4 projection;
@@ -19,10 +22,16 @@ struct ComputeUBO
     float   delta_time;
     int32_t particle_count;
     // FIXME 对齐可能出问题
+}; /* shader 中 specialization 的 constant 量，可以理解为 macro */
+
+
+struct Particle
+{
+    glm::vec4 pos;    // xyz: position, w: mass
+    glm::vec4 vel;    // xyz: velocity, w: uv coord
 };
 
 
-/* shader 中 specialization 的 constant 量，可以理解为 macro */
 struct MovementSpecializationData
 {
     uint32_t    workgroup_size   = {};        // constant id 0
@@ -33,13 +42,61 @@ struct MovementSpecializationData
 };
 
 
-class ComputeShaderNBody : public Hiss::Engine
+/* graphics pass resource */
+struct Graphics
+{
+    std::vector<vk::DescriptorSet> descriptor_sets       = {};
+    Hiss::PipelineTemplate         pipeline_state        = {};
+    vk::DescriptorSetLayout        descriptor_set_layout = VK_NULL_HANDLE;
+    vk::PipelineLayout             pipeline_layout       = VK_NULL_HANDLE;
+    vk::Pipeline                   pipeline              = VK_NULL_HANDLE;
+    GraphcisUBO                    ubo                   = {};
+
+    std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers = {};
+    std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
+
+    const std::string vert_shader_path  = SHADER("compute_Nbody/particle.vert.spv");
+    const std::string frag_shader_path  = SHADER("compute_Nbody/particle.frag.spv");
+    const std::string tex_particle_path = TEXTURE("compute_Nbody/particle_rgba.png");
+    const std::string tex_gradient_path = TEXTURE("compute_Nbody/particle_gradient_rgba.png");
+    Hiss::Texture*    tex_particle      = nullptr;
+    Hiss::Texture*    tex_gradient      = nullptr;
+};
+
+
+struct Compute
+{
+
+    /* 一些配置信息 */
+    uint32_t workgroup_size   = {};
+    uint32_t workgroup_num    = {};
+    uint32_t shared_data_size = {};    // 单位是 sizeof(glm::vec4)
+
+    const std::string shader_file_calculate = SHADER("compute_Nbody/calculate.comp.spv");
+    const std::string shader_file_integrate = SHADER("compute_Nbody/integrate.comp.spv");
+
+
+    std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
+    std::vector<vk::DescriptorSet>           descriptor_sets = {};    // 每一帧有一个
+
+    vk::DescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
+    vk::PipelineLayout      pipeline_layout       = VK_NULL_HANDLE;    // 两个 pipeline 的 layout 相同
+    vk::Pipeline            pipeline_calculate    = VK_NULL_HANDLE;    // 计算质点受力，更新质点速度
+    vk::Pipeline            pipeline_intergrate   = VK_NULL_HANDLE;    // 更新质点的位置
+
+    MovementSpecializationData               specialization_data = {};
+    std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers     = {};    // 每一帧都有一个
+    ComputeUBO                               ubo                 = {};
+};
+
+
+class App : public Hiss::Engine
 {
 public:
-    ComputeShaderNBody()
+    App()
         : Engine("n_body")
     {}
-    ~ComputeShaderNBody() override = default;
+    ~App() override = default;
 
 
     void prepare() override;
@@ -77,13 +134,6 @@ public:
 
 
 private:
-    struct Particle
-    {
-        glm::vec4 pos;    // xyz: position, w: mass
-        glm::vec4 vel;    // xyz: velocity, w: uv coord
-    };
-
-
     const uint32_t        PARTICLES_PER_ATTRACTOR = 4 * 1024;
     uint32_t              num_particles           = {};
     std::vector<Particle> particles               = {};
@@ -98,26 +148,7 @@ private:
     }};
 
 
-    /* graphics pass resource */
-    struct Graphics
-    {
-        std::vector<vk::DescriptorSet> descriptor_sets       = {};
-        Hiss::PipelineTemplate         pipeline_state        = {};
-        vk::DescriptorSetLayout        descriptor_set_layout = VK_NULL_HANDLE;
-        vk::PipelineLayout             pipeline_layout       = VK_NULL_HANDLE;
-        vk::Pipeline                   pipeline              = VK_NULL_HANDLE;
-        GraphcisUBO                    ubo                   = {};
-
-        std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers = {};
-        std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
-
-        const std::string vert_shader_path  = SHADER("compute_Nbody/particle.vert.spv");
-        const std::string frag_shader_path  = SHADER("compute_Nbody/particle.frag.spv");
-        const std::string tex_particle_path = TEXTURE("compute_Nbody/particle_rgba.png");
-        const std::string tex_gradient_path = TEXTURE("compute_Nbody/particle_gradient_rgba.png");
-        Hiss::Texture*    tex_particle      = nullptr;
-        Hiss::Texture*    tex_gradient      = nullptr;
-    } graphics;
+    Graphics graphics;
 
 
     const std::array<vk::DescriptorSetLayoutBinding, 2> compute_descriptor_bindings = {{
@@ -127,29 +158,6 @@ private:
 
 
     /* compute pass resource */
-    struct Compute
-    {
-
-        /* 一些配置信息 */
-        uint32_t workgroup_size   = {};
-        uint32_t workgroup_num    = {};
-        uint32_t shared_data_size = {};    // 单位是 sizeof(glm::vec4)
-
-        const std::string shader_file_calculate = SHADER("compute_Nbody/calculate.comp.spv");
-        const std::string shader_file_integrate = SHADER("compute_Nbody/integrate.comp.spv");
-
-
-        std::array<vk::Semaphore, IN_FLIGHT_CNT> semaphores      = {};
-        std::vector<vk::DescriptorSet>           descriptor_sets = {};    // 每一帧有一个
-
-        vk::DescriptorSetLayout descriptor_set_layout = VK_NULL_HANDLE;
-        vk::PipelineLayout      pipeline_layout       = VK_NULL_HANDLE;    // 两个 pipeline 的 layout 相同
-        vk::Pipeline            pipeline_calculate    = VK_NULL_HANDLE;    // 计算质点受力，更新质点速度
-        vk::Pipeline            pipeline_intergrate   = VK_NULL_HANDLE;    // 更新质点的位置
-
-        MovementSpecializationData               specialization_data = {};
-        std::array<Hiss::Buffer*, IN_FLIGHT_CNT> uniform_buffers     = {};    // 每一帧都有一个
-        ComputeUBO                               ubo                 = {};
-
-    } compute;
+    Compute compute;
 };
+}    // namespace NBody
