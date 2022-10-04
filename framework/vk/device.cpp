@@ -46,24 +46,22 @@ void Hiss::Device::create_logical_device()
 
 
     /* 获取 queue */
-    queue = {
-            .queue        = vkdevice().getQueue(_gpu.queue_family_index(), 0),
-            .family_index = _gpu.queue_family_index(),
-            .flag         = QueueFlag::AllPowerful,
-    };
-
-    spdlog::info("[device] queue family index: {}", queue().family_index);
+    _queue = new Queue(vkdevice._value.getQueue(_gpu.queue_family_index(), 0), _gpu.queue_family_index(),
+                       QueueFlag::AllPowerful);
 
 
-    this->set_debug_name(vk::ObjectType::eQueue, (VkQueue) queue().queue, "all powerfu queue");
+    spdlog::info("[device] queue family index: {}", queue().queue_family_index());
+
+
+    this->set_debug_name(vk::ObjectType::eQueue, (VkQueue) queue().vkqueue(), "all powerfu queue");
 }
 
 
 void Hiss::Device::create_command_pool()
 {
-    _command_pool = new CommandPool(*this, queue._value);
+    _command_pool = new CommandPool(*this, *_queue);
 
-    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool->pool_get(),
+    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool->vkpool(),
                          "default command pool");
 }
 
@@ -72,6 +70,7 @@ Hiss::Device::~Device()
 {
     DELETE(_fence_pool);
     DELETE(_command_pool);
+    DELETE(_queue);
     vkdevice().destroy();
 }
 
@@ -111,7 +110,7 @@ vk::Semaphore Hiss::Device::create_semaphore(bool signal)
 
     /* 提交一个空命令，并通知刚创建的 semaphore，这样来创建 signaled 状态的 semphore */
     vk::Fence temp_fence = fence_pool().acquire(false);
-    queue().queue.submit(vk::SubmitInfo{.signalSemaphoreCount = 1, .pSignalSemaphores = &semaphore}, temp_fence);
+    queue().vkqueue().submit(vk::SubmitInfo{.signalSemaphoreCount = 1, .pSignalSemaphores = &semaphore}, temp_fence);
     if (vk::Result::eSuccess != vkdevice().waitForFences({temp_fence}, VK_TRUE, UINT64_MAX))
         throw std::runtime_error("error on create semaphore.");
     fence_pool().revert(temp_fence);

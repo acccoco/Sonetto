@@ -48,6 +48,10 @@ public:
 #pragma endregion
 
 
+    // 将 buffer 的内容拷贝到当前 image 中
+    void copy_buffer_to_image(vk::Buffer buffer);
+
+
 #pragma region 成员访问
 
     // 访问某个 image view
@@ -62,7 +66,7 @@ public:
 
 
     // execution image memory barrier
-    void execution_barrier(const StageAccess& src, const StageAccess& dst, vk::CommandBuffer command_buffer,
+    void execution_barrier(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
                            uint32_t base_level = 0, uint32_t level_count = 1);
 
 
@@ -70,9 +74,9 @@ public:
      * 向 command buffer 中添加 layout transfer 的指令
      * @param clear 是否清除原数据
      */
-    void transfer_layout(std::optional<StageAccess> src, std::optional<StageAccess> dst,
-                         vk::CommandBuffer command_buffer, vk::ImageLayout new_layout, bool clear = false,
-                         uint32_t base_level = 0, uint32_t level_count = 1);
+    void transfer_layout(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
+                         vk::ImageLayout new_layout, bool clear = false, uint32_t base_level = 0,
+                         uint32_t level_count = 1);
 
 #pragma endregion
 
@@ -99,8 +103,9 @@ public:
 private:
     Device& _device;
 
-    VmaAllocator  _allocator  = nullptr;
-    VmaAllocation _allocation = nullptr;
+    VmaAllocator      _allocator  = nullptr;
+    VmaAllocation     _allocation = nullptr;
+    VmaAllocationInfo _alloc_info;
 
     bool is_proxy = false;    // image 来自类的外部，并非在类中创建
 

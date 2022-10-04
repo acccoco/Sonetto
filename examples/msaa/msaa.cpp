@@ -17,7 +17,7 @@ void MSAA::App::prepare()
 
     /* assets */
     _mesh    = new Hiss::Mesh(*_device, model_path);
-    _texture = new Hiss::Texture(*_device, texture_path, true);
+    _texture = new Hiss::Texture(*_device, nullptr, texture_path, true);
 
 
     /* 组件 */
@@ -253,7 +253,7 @@ void MSAA::App::update(double delte_time) noexcept
     std::array<vk::PipelineStageFlags, 1> wait_stages       = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
     std::array<vk::Semaphore, 1>          wait_semaphores   = {current_frame().semaphore_swapchain_acquire()};
     std::array<vk::Semaphore, 1>          signal_semaphores = {current_frame().semaphore_render_complete()};
-    _device->queue().queue.submit(
+    _device->queue().queue.submit_commands(
             {vk::SubmitInfo{
                     .waitSemaphoreCount   = static_cast<uint32_t>(wait_semaphores.size()),
                     .pWaitSemaphores      = wait_semaphores.data(),

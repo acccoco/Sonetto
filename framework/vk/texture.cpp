@@ -4,10 +4,10 @@
 #include "utils/tools.hpp"
 
 
-Hiss::Texture::Texture(Hiss::Device& device, std::string tex_path, bool mipmap)
-    : _device(device),
-      _tex_path(std::move(tex_path)),
-      _mip_levels(mipmap)
+Hiss::Texture::Texture(Device& device, VmaAllocator allocator, std::string tex_path, bool mipmap)
+    : path(std::move(tex_path)),
+      _device(device),
+      _allocator(allocator)
 {
     image_create(mipmap);
     sampler_create();
@@ -16,52 +16,45 @@ Hiss::Texture::Texture(Hiss::Device& device, std::string tex_path, bool mipmap)
 
 void Hiss::Texture::image_create(bool mipmap)
 {
-    /* read data from a file and transfer it into the stage_buffer */
-    Hiss::Stbi_8Bit_RAII tex_data(_tex_path, STBI_rgb_alpha);
-    _width    = tex_data.width();
-    _height   = tex_data.height();
-    _channels = tex_data.channels_in_file();
+    // 从 image 文件中读取数据
+    Hiss::Stbi_8Bit_RAII tex_data(path._value, STBI_rgb_alpha);
+    channels = tex_data.channels_in_file();
 
-    vk::DeviceSize image_size = _width * _height * 4;
-    Hiss::Buffer   stage_buffer(_device, image_size, vk::BufferUsageFlagBits::eTransferSrc,
-                                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
-    stage_buffer.memory_copy_in(tex_data.data(), static_cast<size_t>(image_size));
+
+    // 将数据写入 stage buffer 中
+    vk::DeviceSize    image_size = tex_data.width() * tex_data.height() * 4;
+    Hiss::StageBuffer stage_buffer(_allocator, image_size);
+    stage_buffer.mem_copy(tex_data.data, static_cast<size_t>(image_size));
 
 
     /* 计算 mipmap 的级别 */
-    if (!mipmap)
-        _mip_levels = 1;
-    else
-        _mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(_width, _height)))) + 1;
+    // _mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(_width, _height)))) + 1;
 
 
-    /* create a image and copy buffer to the image */
-    _image = new Hiss::Image(Hiss::Image::CreateInfo{
-            .device     = _device,
-            .format     = vk::Format::eR8G8B8A8Srgb,
-            .extent     = {_width, _height},
-            .mip_levels = _mip_levels,
-            /* 要建立 mipmap，因此需要 transfer src */
-            .usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
-                   | vk::ImageUsageFlagBits::eSampled,
-            .memory_properties = vk::MemoryPropertyFlagBits::eDeviceLocal,
-    });
-    _image->layout_tran(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
-                        vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
-    _image->copy_buffer_to_image(stage_buffer.vkbuffer(), vk::ImageAspectFlagBits::eColor);
+    // 创建空的 iamge
+    _image = new Image2D(_allocator, _device,
+                         Image2D::Info{
+                                 .format     = vk::Format::eR8G8B8A8Srgb,
+                                 .extent     = {(uint32_t) tex_data.width(), (uint32_t) tex_data.height()},
+                                 .mip_levels = 1,
+                                 .usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
+                                        | vk::ImageUsageFlagBits::eSampled,
+                                 .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+                                 .aspect       = vk::ImageAspectFlagBits::eColor,
+                                 .init_layout  = vk::ImageLayout::eTransferDstOptimal,
+                         });
 
 
+    // 将 stagebuffer 的数据写入
+    _image->copy_buffer_to_image(stage_buffer.vkbuffer());
+
+
+    // TODO 添加 mipmap 的支持
     /* generate mipmap */
-    if (_mip_levels > 1)
-    {
-        if (!_image->mipmap_generate(vk::ImageAspectFlagBits::eColor))
-            spdlog::warn("the format is not supported to be linear filtered");
-    }
-    else
-    {
-        _image->layout_tran(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                            vk::ImageAspectFlagBits::eColor, 0, _mip_levels);
-    }
+
+
+    // 最后将 layout 转变为适合 shader 读取的形式
+    _image->transfer_layout_im(vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
 
@@ -85,8 +78,9 @@ void Hiss::Texture::sampler_create()
             .compareEnable = VK_FALSE,
             .compareOp     = vk::CompareOp::eAlways,
 
+            // TODO mipmap 的支持
             .minLod = 0.f,
-            .maxLod = static_cast<float>(_mip_levels),
+            .maxLod = static_cast<float>(1),
 
             .borderColor             = vk::BorderColor::eIntOpaqueBlack,
             .unnormalizedCoordinates = VK_FALSE,
@@ -98,6 +92,5 @@ void Hiss::Texture::sampler_create()
 Hiss::Texture::~Texture()
 {
     _device.vkdevice().destroy(_sampler);
-    DELETE(_image_view);
     DELETE(_image);
 }

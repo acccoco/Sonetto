@@ -24,9 +24,9 @@ vk::Pipeline Hiss::PipelineTemplate::generate(const Device& device)
 
     // dynamic rendering 相关的信息
     vk::PipelineRenderingCreateInfo attach_info = {
-            .colorAttachmentCount    = static_cast<uint32_t>(color_formats.size()),
-            .pColorAttachmentFormats = color_formats.data(),
-            .depthAttachmentFormat   = depth_format,
+            .colorAttachmentCount    = static_cast<uint32_t>(color_attach_formats.size()),
+            .pColorAttachmentFormats = color_attach_formats.data(),
+            .depthAttachmentFormat   = depth_attach_format,
     };
 
     vk::GraphicsPipelineCreateInfo pipeline_info = {

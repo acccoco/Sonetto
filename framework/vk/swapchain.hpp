@@ -23,7 +23,7 @@ public:
 
     /**
      * 从 swapchain 中获取 image，用于渲染下一帧
-     * 只有 submit 过的 image 才能够被再度 acquire
+     * 只有 submit_commands 过的 image 才能够被再度 acquire
      * @param signal_semaphore image 可用后，回通过该 semaphore 通知
      */
     [[nodiscard]] uint32_t acquire_image(vk::Semaphore signal_semaphore) const;

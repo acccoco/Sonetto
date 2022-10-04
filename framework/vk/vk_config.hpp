@@ -10,7 +10,18 @@ namespace Hiss
 const uint32_t APP_VK_VERSION = VK_API_VERSION_1_1;
 
 
-const uint32_t FRAMES_IN_FLIGHT = 3;
+class Engine;
+class FrameManager;
+const struct
+{
+public:
+    friend class Hiss::Engine;
+    friend class Hiss::FrameManager;
+
+private:
+    const uint32_t frames_number = 3;
+} config;
+
 
 // instance 需要的 layers
 inline std::vector<const char*> get_layers()

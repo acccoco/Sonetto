@@ -32,15 +32,37 @@ public:
 
     ~Buffer2() { vmaDestroyBuffer(_allocator, vkbuffer._value, _allocation); }
 
+
+    // 在 command buffer 中插入关于当前 buffer 的内存屏障
+    void memory_barrier(vk::CommandBuffer& command_buffer, const StageAccess& src, const StageAccess& dst)
+    {
+        command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {},
+                                       vk::BufferMemoryBarrier{
+                                               .srcAccessMask = src.access,
+                                               .dstAccessMask = dst.access,
+                                               .buffer        = vkbuffer._value,
+                                               .offset        = 0,
+                                               .size          = size._value,
+                                       },
+                                       {});
+    }
+
+
+#pragma region public properties
 public:
     Prop<VkBuffer, Buffer2>       vkbuffer{};
     Prop<vk::DeviceSize, Buffer2> size;
 
+#pragma endregion
 
+
+#pragma region private members
 protected:
     VmaAllocator      _allocator;
     VmaAllocation     _allocation{};    // 对应 memory
     VmaAllocationInfo _alloc_info{};    // 分配信息，例如内存映射的地址
+
+#pragma endregion
 };
 
 
@@ -118,5 +140,6 @@ public:
         std::memcpy(_alloc_info.pMappedData, src, size);
     }
 };
+
 
 }    // namespace Hiss

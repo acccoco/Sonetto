@@ -92,4 +92,12 @@ struct StageAccess
     vk::AccessFlags        access = {};
 };
 
+
+// pipeline stage 和 semaphore 的简单组合
+struct StageSemaphore
+{
+    vk::PipelineStageFlags stage     = {};
+    vk::Semaphore          semaphore = {};
+};
+
 }    // namespace Hiss

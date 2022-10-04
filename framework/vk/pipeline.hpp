@@ -35,8 +35,8 @@ public:
     std::vector<vk::VertexInputAttributeDescription> vertex_attributes = {};
 
     // dynamic rendering 需要的格式信息
-    std::vector<vk::Format> color_formats = {};
-    vk::Format              depth_format  = {};
+    std::vector<vk::Format> color_attach_formats = {};
+    vk::Format              depth_attach_format  = {};
 
     vk::PipelineLayout            pipeline_layout = {};
     std::vector<vk::DynamicState> dynamic_states  = {};

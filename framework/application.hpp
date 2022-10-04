@@ -1,4 +1,5 @@
 #pragma once
+#include "engine.hpp"
 
 
 namespace Hiss
@@ -6,11 +7,20 @@ namespace Hiss
 class IApplication
 {
 public:
+    explicit IApplication(Hiss::Engine& engine)
+        : engine(engine)
+    {}
+
+    virtual ~IApplication() = default;
+
     virtual void prepare() = 0;
     virtual void resize()  = 0;
     virtual void update()  = 0;
     virtual void clean()   = 0;
-    virtual ~IApplication() = default;
+
+
+public:
+    Engine& engine;
 };
 
 }    // namespace Hiss

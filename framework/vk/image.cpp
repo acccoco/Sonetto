@@ -2,27 +2,27 @@
 #include "vk/image.hpp"
 
 
-//void Hiss::Image::copy_buffer_to_image(vk::Buffer buffer, vk::ImageAspectFlags aspect)
-//{
-//    vk::BufferImageCopy copy_info = {
-//            .bufferOffset = 0,
-//            /* zero for tightly packed */
-//            .bufferRowLength   = 0,
-//            .bufferImageHeight = 0,
-//
-//            .imageSubresource = vk::ImageSubresourceLayers{.aspectMask     = aspect,
-//                                                           .mipLevel       = 0,
-//                                                           .baseArrayLayer = 0,
-//                                                           .layerCount     = 1},
-//            .imageOffset      = {0, 0, 0},
-//            .imageExtent      = {_extent.width, _extent.height, 1},
-//    };
-//
-//
-//    Hiss::OneTimeCommand command(_device, _device.command_pool());
-//    command().copyBufferToImage(buffer, _image, vk::ImageLayout::eTransferDstOptimal, {copy_info});
-//    command.exec();
-//}
+void Hiss::Image2D::copy_buffer_to_image(vk::Buffer buffer)
+{
+    vk::BufferImageCopy copy_info = {
+            .bufferOffset = 0,
+            /* zero for tightly packed */
+            .bufferRowLength   = 0,
+            .bufferImageHeight = 0,
+
+            .imageSubresource = vk::ImageSubresourceLayers{.aspectMask     = aspect._value,
+                                                           .mipLevel       = 0,
+                                                           .baseArrayLayer = 0,
+                                                           .layerCount     = 1},
+            .imageOffset      = {0, 0, 0},
+            .imageExtent      = {extent._value.width, extent._value.height, 1},
+    };
+
+
+    Hiss::OneTimeCommand command(_device, _device.command_pool());
+    command().copyBufferToImage(buffer, vkimage._value, vk::ImageLayout::eTransferDstOptimal, {copy_info});
+    command.exec();
+}
 
 
 /**
@@ -148,7 +148,7 @@ Hiss::Image2D::Image2D(VmaAllocator allocator, Hiss::Device& device, const Hiss:
             .priority = 1.f,
     };
 
-    vmaCreateImage(allocator, &image_info, &alloc_create_info, &vkimage._value, &_allocation, nullptr);
+    vmaCreateImage(allocator, &image_info, &alloc_create_info, &vkimage._value, &_allocation, &_alloc_info);
     if (!info.name.empty())
         _device.set_debug_name(vk::ObjectType::eImage, vkimage._value, info.name);
 
@@ -229,8 +229,8 @@ void Hiss::Image2D::transfer_layout_im(vk::ImageLayout new_layout, uint32_t base
 }
 
 
-void Hiss::Image2D::execution_barrier(const Hiss::StageAccess& src, const Hiss::StageAccess& dst,
-                                      vk::CommandBuffer command_buffer, uint32_t base_level, uint32_t level_count)
+void Hiss::Image2D::execution_barrier(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
+                                      uint32_t base_level, uint32_t level_count)
 {
     assert(base_level + level_count <= mip_levels._value);
 
@@ -246,21 +246,15 @@ void Hiss::Image2D::execution_barrier(const Hiss::StageAccess& src, const Hiss::
 }
 
 
-void Hiss::Image2D::transfer_layout(std::optional<StageAccess> src, std::optional<StageAccess> dst,
-                                    vk::CommandBuffer command_buffer, vk::ImageLayout new_layout, bool clear,
-                                    uint32_t base_level, uint32_t level_count)
+void Hiss::Image2D::transfer_layout(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
+                                    vk::ImageLayout new_layout, bool clear, uint32_t base_level, uint32_t level_count)
 {
     assert(base_level + level_count <= mip_levels._value);
 
-    auto src_stage  = src.has_value() ? src->stage : vk::PipelineStageFlagBits::eTopOfPipe;
-    auto dst_stage  = dst.has_value() ? dst->stage : vk::PipelineStageFlagBits::eBottomOfPipe;
-    auto src_access = src.has_value() ? src->access : vk::AccessFlags();
-    auto dst_access = dst.has_value() ? dst->access : vk::AccessFlags();
-
-    command_buffer.pipelineBarrier(src_stage, dst_stage, {}, {}, {},
+    command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {}, {},
                                    {vk::ImageMemoryBarrier{
-                                           .srcAccessMask = src_access,
-                                           .dstAccessMask = dst_access,
+                                           .srcAccessMask = src.access,
+                                           .dstAccessMask = dst.access,
                                            .oldLayout     = clear ? vk::ImageLayout::eUndefined : _layouts[base_level],
                                            .newLayout     = new_layout,
                                            .image         = vkimage._value,

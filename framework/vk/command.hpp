@@ -19,8 +19,8 @@ public:
     CommandPool(Device& device, Queue& queue);
     ~CommandPool();
 
-    [[nodiscard]] vk::CommandPool pool_get() const { return _pool; }
-    [[nodiscard]] const Queue&    queue_get() const { return _queue; }
+    [[nodiscard]] vk::CommandPool vkpool() const { return _pool; }
+    [[nodiscard]] const Queue&    queue() const { return _queue; }
 
     std::vector<vk::CommandBuffer> command_buffer_create(uint32_t count = 1);
 

@@ -50,15 +50,14 @@ void Hello::App::create_pipeline()
 
     // pipeline layout
     assert(_descriptor_set_layout);
-    _pipeline_layout                   = engine.vkdevice().createPipelineLayout({
-                              .setLayoutCount = 1,
-                              .pSetLayouts    = &_descriptor_set_layout,
+    _pipeline_template.pipeline_layout = _pipeline_layout = engine.vkdevice().createPipelineLayout({
+            .setLayoutCount = 1,
+            .pSetLayouts    = &_descriptor_set_layout,
     });
-    _pipeline_template.pipeline_layout = _pipeline_layout;
 
     // framebuffer 相关
-    _pipeline_template.depth_format  = engine.device().gpu().depth_stencil_format();
-    _pipeline_template.color_formats = {engine.color_format()};
+    _pipeline_template.depth_attach_format  = engine.device().gpu().depth_stencil_format();
+    _pipeline_template.color_attach_formats = {engine.color_format()};
 
     _pipeline = _pipeline_template.generate(engine.device());
 }
@@ -71,23 +70,22 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
 
     // depth attachment execution barrier: 确保对 depth buffer 的写入不会乱序
     _depth_image->execution_barrier(
-            {vk::PipelineStageFlagBits::eLateFragmentTests},
-            {vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::AccessFlagBits::eDepthStencilAttachmentWrite},
-            command_buffer);
+            command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
+            {vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::AccessFlagBits::eDepthStencilAttachmentWrite});
 
 
     // color attachment layout transfer: undefined -> present （无需保留之前的内容）
-    frame.image().transfer_layout({},
-                                  Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                                    vk::AccessFlagBits::eColorAttachmentWrite},
-                                  command_buffer, vk::ImageLayout::eColorAttachmentOptimal, true);
+    frame.image().transfer_layout(
+            command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, vk::AccessFlags()},
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            vk::ImageLayout::eColorAttachmentOptimal, true);
 
     auto color_attach_info = vk::RenderingAttachmentInfo{
             .imageView   = frame.image().view().vkview,
             .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
             .loadOp      = vk::AttachmentLoadOp::eClear,
             .storeOp     = vk::AttachmentStoreOp::eStore,
-            .clearValue  = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.2f, 0.2f, 0.2f, 1.f}}},
+            .clearValue  = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.f}}},
     };
     auto depth_attach_info = vk::RenderingAttachmentInfo{
             .imageView   = _depth_image->view().vkview,
@@ -118,9 +116,10 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
 
 
     /* color attachment layout transition: color -> present */
-    frame.image().transfer_layout(Hiss::StageAccess{vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                                    vk::AccessFlagBits::eColorAttachmentWrite},
-                                  {}, command_buffer, vk::ImageLayout::ePresentSrcKHR);
+    frame.image().transfer_layout(
+            command_buffer,
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            {vk::PipelineStageFlagBits::eBottomOfPipe, {}}, vk::ImageLayout::ePresentSrcKHR);
 
 
     command_buffer.end();
@@ -129,26 +128,20 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
 
 void Hello::App::update() noexcept
 {
+    engine.frame_manager().acquire_frame();
     auto& frame   = engine.current_frame();
     auto& payload = _payloads[frame.frame_id()];
 
     /* draw */
     record_command(payload.command_buffer, payload, frame);
 
-    vk::PipelineStageFlags wait_stage       = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-    vk::Semaphore          wait_semaphore   = frame.acquire_semaphore();
-    vk::Semaphore          signal_semaphore = frame.submit_semaphore();
+    engine.queue().submit_commands(
+            {
+                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()},
+            },
+            {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
 
-    engine.device().vkqueue().submit({vk::SubmitInfo{
-                                             .waitSemaphoreCount   = 1,
-                                             .pWaitSemaphores      = &wait_semaphore,
-                                             .pWaitDstStageMask    = &wait_stage,
-                                             .commandBufferCount   = 1,
-                                             .pCommandBuffers      = &payload.command_buffer,
-                                             .signalSemaphoreCount = 1,
-                                             .pSignalSemaphores    = &signal_semaphore,
-                                     }},
-                                     frame.insert_fence());
+    engine.frame_manager().submit_frame();
 }
 
 

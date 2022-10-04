@@ -3,6 +3,7 @@
 #include "engine.hpp"
 #include "proj_config.hpp"
 #include <spdlog/spdlog.h>
+#include "application.hpp"
 
 
 inline void init_log()
@@ -15,13 +16,13 @@ inline void init_log()
 inline void log_begin_region(const std::string& name)
 {
     spdlog::info("");
-    spdlog::info("{} begin ===========================================================", name);
+    spdlog::info("================== {} begin ===========================================================", name);
 }
 
 
 inline void log_end_region(const std::string& name)
 {
-    spdlog::info("{} end =============================================================", name);
+    spdlog::info("================== {} end =============================================================", name);
     spdlog::info("");
 }
 
@@ -41,7 +42,7 @@ int run(const std::string& app_name)
 
         // 初始化应用
         log_begin_region("application init");
-        auto* app = new app_t(engine);
+        Hiss::IApplication* app = new app_t(engine);
         app->prepare();
         log_end_region("application init");
 
@@ -53,11 +54,11 @@ int run(const std::string& app_name)
 
             if (engine.should_resize())
             {
-                log_begin_region("resize");
+                log_begin_region("on_resize");
                 engine.wait_idle();
                 engine.resize();
                 app->resize();
-                log_end_region("resize");
+                log_end_region("on_resize");
                 continue;
             }
 

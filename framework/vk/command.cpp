@@ -8,7 +8,7 @@ Hiss::CommandPool::CommandPool(Device& device, Queue& queue)
 {
     _pool = device.vkdevice().createCommandPool(vk::CommandPoolCreateInfo{
             .flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-            .queueFamilyIndex = queue.family_index,
+            .queueFamilyIndex = queue.queue_family_index(),
     });
 }
 
@@ -49,7 +49,7 @@ Hiss::OneTimeCommand::OneTimeCommand(const Hiss::Device& device, Hiss::CommandPo
 
 Hiss::OneTimeCommand::~OneTimeCommand()
 {
-    _device.vkdevice().free(_pool.pool_get(), {_command_buffer});
+    _device.vkdevice().free(_pool.vkpool(), {_command_buffer});
 }
 
 
@@ -60,7 +60,7 @@ void Hiss::OneTimeCommand::exec()
     vk::Fence fence = _device.fence_pool().acquire(false);
 
     _command_buffer.end();
-    _pool.queue_get().queue.submit({vk::SubmitInfo{
+    _pool.queue().vkqueue().submit({vk::SubmitInfo{
                                            .commandBufferCount = 1,
                                            .pCommandBuffers    = &_command_buffer,
                                    }},

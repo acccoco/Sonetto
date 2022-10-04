@@ -4,16 +4,13 @@
 #include "run.hpp"
 
 
-APP_RUN(ComputeShaderNBody)
+RUN(NBody::App)
 
 
 void NBody::App::prepare()
 {
-    Hiss::Engine::prepare();
-    spdlog::info("[NBody] prepare");
 
     /* 公共部分初始化 */
-    descriptor_pool_prepare();
     particles_prepare();
     storage_buffer_prepare();
 
@@ -32,48 +29,50 @@ void NBody::App::clean()
 
 
     DELETE(storage_buffer);
-    _device->vkdevice().destroy(descriptor_pool);
-
-    Hiss::Engine::clean();
 }
 
 
 void NBody::App::resize()
 {
-    Hiss::Engine::resize();
+    graphics_resize();
+
+    spdlog::debug("depth size: ({}, {})", graphics.depth_image->extent().width, graphics.depth_image->extent().height);
 }
 
 
 void NBody::App::compute_prepare()
 {
+    spdlog::info("[NBody] compute prepare");
     assert(num_particles);
 
     /* workgroup 相关的数据 */
-    compute.workgroup_size = std::min<uint32_t>(256, _physical_device->properties().limits.maxComputeWorkGroupSize[0]);
-    compute.shared_data_size = std::min<uint32_t>(1024, _physical_device->properties().limits.maxComputeSharedMemorySize
-                                                                / sizeof(glm::vec4));
-    compute.workgroup_num    = num_particles / compute.workgroup_size;
+    compute.workgroup_size = std::min<uint32_t>(256, engine.gpu().properties().limits.maxComputeWorkGroupSize[0]);
+    compute.shared_data_size =
+            std::min<uint32_t>(1024, engine.gpu().properties().limits.maxComputeSharedMemorySize / sizeof(glm::vec4));
+    compute.workgroup_num = num_particles / compute.workgroup_size;
     spdlog::info("[NBody] workgroup size: {}, workgroup count: {}, shared data size: {}", compute.workgroup_size,
                  compute.workgroup_num, compute.shared_data_size);
 
 
+    // 初始化每一帧需要用到的数据
+    compute.payloads = {engine.frame_manager().frames().size(), Compute::Payload()};
+    for (int i = 0; i < compute.payloads.size(); ++i)
+    {
+        auto& payload = compute.payloads[i];
+
+        // 注意 semaphore 应该是 signaled
+        payload.command_buffer = engine.device().command_pool().command_buffer_create(fmt::format("compute[{}]", i));
+    }
+
+
     compute_uniform_buffer_prepare();
-    compute_descriptor_prepare();
+    compute_prepare_descriptor_set();
     compute_pipeline_prepare();
 
 
-    /* 创建 semaphore，并设为 signaled 状态 */
-    for (auto& semaphore: compute.semaphores)
-    {
-        semaphore = _device->create_semaphore(true);
-    }
-
-
     /* 录制 command buffer */
-    for (size_t i = 0; i < IN_FLIGHT_CNT; ++i)
-    {
-        compute_command_prepare(compute_command_buffer()[i], compute.descriptor_sets[i]);
-    }
+    for (auto& payload: compute.payloads)
+        compute_record_command(payload.command_buffer, payload.descriptor_set);
 }
 
 
@@ -81,41 +80,22 @@ void NBody::App::graphics_prepare()
 {
     spdlog::info("[NBody] graphics prepare");
 
-    graphics_load_assets();
-    graphics_uniform_buffer_prepare();
-    graphics_descriptor_set_prepare();
-    graphics_pipeline_prepare();
-
-    for (auto& semaphore: graphics.semaphores)
+    // 初始化每一帧的数据
+    graphics.payloads.resize(engine.frame_manager().frames_number());
+    for (int i = 0; i < graphics.payloads.size(); ++i)
     {
-        semaphore = _device->create_semaphore();
+        auto& payload = graphics.payloads[i];
+
+        // 注意 semaphore 应该不是 signaled
+        payload.command_buffer = engine.device().command_pool().command_buffer_create(fmt::format("graphics[{}]", i));
     }
-}
 
+    graphics.depth_image = engine.create_depth_image();
 
-void NBody::App::descriptor_pool_prepare()
-{
-    /**
-     * compute shader: 1 uniform buffer, 1 storage buffer
-     * vertex shader: 1 uniform buffer
-     * fragment shader: 2 sampler
-     */
-    std::array<vk::DescriptorPoolSize, 3> pool_size = {{
-            {vk::DescriptorType::eUniformBuffer, 2 * IN_FLIGHT_CNT},
-            {vk::DescriptorType::eStorageBuffer, 1 * IN_FLIGHT_CNT},
-            {vk::DescriptorType::eCombinedImageSampler, 2 * IN_FLIGHT_CNT},
-    }};
-
-    /**
-     * 只需要 2 个 descriptor set2
-     *  compute 的 2 个 pipeline 共用一个 descriptor set
-     *  graphics 只有 1 个 pipeline，只需要一个 descirptor set
-     */
-    descriptor_pool = _device->vkdevice().createDescriptorPool(vk::DescriptorPoolCreateInfo{
-            .maxSets       = 2 * IN_FLIGHT_CNT,
-            .poolSizeCount = static_cast<uint32_t>(pool_size.size()),
-            .pPoolSizes    = pool_size.data(),
-    });
+    graphics_load_assets();
+    graphics_create_uniform_buffer();
+    graphics_prepare_descriptor_set();
+    graphics_pipeline_prepare();
 }
 
 
@@ -125,7 +105,7 @@ void NBody::App::descriptor_pool_prepare()
 void NBody::App::compute_pipeline_prepare()
 {
     /* pipeline layout */
-    compute.pipeline_layout = _device->vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
+    compute.pipeline_layout = engine.vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
             .setLayoutCount = 1,
             .pSetLayouts    = &compute.descriptor_set_layout,
     });
@@ -154,7 +134,7 @@ void NBody::App::compute_pipeline_prepare()
                 &compute.specialization_data,
         };
         vk::ComputePipelineCreateInfo pipeline_info = {
-                .stage  = _shader_loader->load(compute.shader_file_calculate, vk::ShaderStageFlagBits::eCompute),
+                .stage  = engine.shader_loader().load(compute.shader_file_calculate, vk::ShaderStageFlagBits::eCompute),
                 .layout = compute.pipeline_layout,
         };
         pipeline_info.stage.pSpecializationInfo = &specialization_info;
@@ -162,7 +142,7 @@ void NBody::App::compute_pipeline_prepare()
         /* generate pipeline */
         vk::Result result;
         std::tie(result, compute.pipeline_calculate) =
-                _device->vkdevice().createComputePipeline(VK_NULL_HANDLE, pipeline_info);
+                engine.vkdevice().createComputePipeline(VK_NULL_HANDLE, pipeline_info);
         vk::resultCheck(result, "failed to create compute pipeline: calculate.");
     }
 
@@ -179,7 +159,7 @@ void NBody::App::compute_pipeline_prepare()
         };
 
         vk::ComputePipelineCreateInfo pipeline_info = {
-                .stage  = _shader_loader->load(compute.shader_file_integrate, vk::ShaderStageFlagBits::eCompute),
+                .stage  = engine.shader_loader().load(compute.shader_file_integrate, vk::ShaderStageFlagBits::eCompute),
                 .layout = compute.pipeline_layout,
         };
         pipeline_info.stage.pSpecializationInfo = &specialization_info;
@@ -187,7 +167,7 @@ void NBody::App::compute_pipeline_prepare()
         /* generate pipeline */
         vk::Result result;
         std::tie(result, compute.pipeline_intergrate) =
-                _device->vkdevice().createComputePipeline(VK_NULL_HANDLE, pipeline_info);
+                engine.vkdevice().createComputePipeline(VK_NULL_HANDLE, pipeline_info);
         vk::resultCheck(result, "failed to create compute pipeline: integrate");
     }
 }
@@ -196,33 +176,36 @@ void NBody::App::compute_pipeline_prepare()
 /**
  * 创建 descriptor set，并将其绑定到 uniform buffer 和 storage buffer
  */
-void NBody::App::compute_descriptor_prepare()
+void NBody::App::compute_prepare_descriptor_set()
 {
     /* descriptor set layout */
-    compute.descriptor_set_layout = _device->vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
+    compute.descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
             .bindingCount = static_cast<uint32_t>(compute_descriptor_bindings.size()),
             .pBindings    = compute_descriptor_bindings.data(),
     });
 
 
     /* descriptor sets */
-    std::vector<vk::DescriptorSetLayout> temp_layout(IN_FLIGHT_CNT, compute.descriptor_set_layout);
-    compute.descriptor_sets = _device->vkdevice().allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
-            .descriptorPool     = descriptor_pool,
+    std::vector<vk::DescriptorSetLayout> temp_layout(compute.payloads.size(), compute.descriptor_set_layout);
+    auto descriptor_sets = engine.vkdevice().allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+            .descriptorPool     = engine.descriptor_pool(),
             .descriptorSetCount = static_cast<uint32_t>(temp_layout.size()),
             .pSetLayouts        = temp_layout.data(),
     });
+    for (int i = 0; i < compute.payloads.size(); ++i)
+        compute.payloads[i].descriptor_set = descriptor_sets[i];
 
 
     /* 将 descriptor 和 buffer 绑定起来 */
-    for (size_t i = 0; i < IN_FLIGHT_CNT; ++i)
+    assert(storage_buffer);
+    for (auto& payload: compute.payloads)
     {
         vk::DescriptorBufferInfo storage_buffer_info = {storage_buffer->vkbuffer(), 0, VK_WHOLE_SIZE};
-        vk::DescriptorBufferInfo uniform_buffer_info = {compute.uniform_buffers[i]->vkbuffer(), 0, VK_WHOLE_SIZE};
+        vk::DescriptorBufferInfo uniform_buffer_info = {payload.uniform_buffer->vkbuffer(), 0, VK_WHOLE_SIZE};
 
         std::array<vk::WriteDescriptorSet, 2> descriptor_writes = {{
                 {
-                        .dstSet          = compute.descriptor_sets[i],
+                        .dstSet          = payload.descriptor_set,
                         .dstBinding      = 0,
                         .dstArrayElement = 0,
                         .descriptorCount = 1,
@@ -230,7 +213,7 @@ void NBody::App::compute_descriptor_prepare()
                         .pBufferInfo     = &storage_buffer_info,
                 },
                 {
-                        .dstSet          = compute.descriptor_sets[i],
+                        .dstSet          = payload.descriptor_set,
                         .dstBinding      = 1,
                         .dstArrayElement = 0,
                         .descriptorCount = 1,
@@ -238,7 +221,7 @@ void NBody::App::compute_descriptor_prepare()
                         .pBufferInfo     = &uniform_buffer_info,
                 },
         }};
-        _device->vkdevice().updateDescriptorSets(descriptor_writes, {});
+        engine.vkdevice().updateDescriptorSets(descriptor_writes, {});
     }
 }
 
@@ -246,28 +229,16 @@ void NBody::App::compute_descriptor_prepare()
 /**
  * 录制命令
  */
-void NBody::App::compute_command_prepare(vk::CommandBuffer command_buffer, vk::DescriptorSet descriptor_set)
+void NBody::App::compute_record_command(vk::CommandBuffer command_buffer, vk::DescriptorSet descriptor_set)
 {
-    assert(storage_buffer);
     command_buffer.begin(vk::CommandBufferBeginInfo{});
-    bool need_queue_transfer = !Hiss::Queue::is_same_queue_family(_device->queue_compute(), _device->queue());
 
 
-    /* queue family owner transfer: acquire */
-    if (need_queue_transfer)
-    {
-        command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eVertexShader,
-                                       vk::PipelineStageFlagBits::eComputeShader, {}, {},
-                                       {vk::BufferMemoryBarrier{
-                                               .dstAccessMask       = vk::AccessFlagBits::eShaderWrite,
-                                               .srcQueueFamilyIndex = _device->queue().family_index,
-                                               .dstQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .buffer              = storage_buffer->vkbuffer(),
-                                               .offset              = 0,
-                                               .size                = storage_buffer->buffer_size(),
-                                       }},
-                                       {});
-    }
+    // 从 graphics 阶段获取 storage buffer
+    assert(storage_buffer);
+    storage_buffer->memory_barrier(command_buffer,
+                                   {vk::PipelineStageFlagBits::eVertexInput, vk::AccessFlagBits::eVertexAttributeRead},
+                                   {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite});
 
 
     /* 1st pass: 计算受力，更新速度 */
@@ -279,16 +250,10 @@ void NBody::App::compute_command_prepare(vk::CommandBuffer command_buffer, vk::D
 
 
     /* 在 1st 和 2nd 之间插入 memory barrier */
-    command_buffer.pipelineBarrier(
-            vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, {},
-            {vk::BufferMemoryBarrier{
-                    .srcAccessMask = vk::AccessFlagBits::eShaderWrite,
-                    .dstAccessMask = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite,
-                    .buffer        = storage_buffer->vkbuffer(),
-                    .offset        = 0,
-                    .size          = storage_buffer->buffer_size(),
-            }},
-            {});
+    storage_buffer->memory_barrier(command_buffer,
+                                   {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
+                                   {vk::PipelineStageFlagBits::eComputeShader,
+                                    vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite});
 
 
     /* 2nd pass: 更新质点的位置 */
@@ -298,21 +263,6 @@ void NBody::App::compute_command_prepare(vk::CommandBuffer command_buffer, vk::D
     command_buffer.dispatch(compute.workgroup_num, 1, 1);
 
 
-    /* queue family ownership transfer: release */
-    if (need_queue_transfer)
-    {
-        command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
-                                       vk::PipelineStageFlagBits::eVertexShader, {}, {},
-                                       {vk::BufferMemoryBarrier{
-                                               .srcAccessMask       = vk::AccessFlagBits::eShaderWrite,
-                                               .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .dstQueueFamilyIndex = _device->queue().family_index,
-                                               .buffer              = storage_buffer->vkbuffer(),
-                                               .offset              = 0,
-                                               .size                = storage_buffer->buffer_size(),
-                                       }},
-                                       {});
-    }
     command_buffer.end();
 }
 
@@ -378,67 +328,38 @@ void NBody::App::particles_prepare()
 void NBody::App::storage_buffer_prepare()
 {
     assert(!particles.empty());
-    spdlog::debug("[NBody] storage buffer prepare");
+    spdlog::info("[NBody] storage buffer prepare");
 
 
     /* create storage buffer */
     vk::DeviceSize storage_buffer_size = particles.size() * sizeof(Particle);
 
-    storage_buffer = new Hiss::Buffer(*_device, storage_buffer_size,
-                                      vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst
-                                              | vk::BufferUsageFlagBits::eStorageBuffer,
-                                      vk::MemoryPropertyFlagBits::eDeviceLocal);
-    auto stage_buffer =
-            Hiss::Buffer(*_device, storage_buffer_size, vk::BufferUsageFlagBits::eTransferSrc,
-                         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
-    stage_buffer.memory_copy_in(particles.data(), storage_buffer_size);
+    storage_buffer    = new Hiss::Buffer2(engine.allocator, storage_buffer_size,
+                                          vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst
+                                                  | vk::BufferUsageFlagBits::eStorageBuffer,
+                                          VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+    auto stage_buffer = Hiss::StageBuffer(engine.allocator, storage_buffer_size);
+    stage_buffer.mem_copy(particles.data(), storage_buffer_size);
 
 
     /* stage buffer -> storage buffer */
-    Hiss::OneTimeCommand command_buffer(*_device, _device->command_pool_compute());
+    Hiss::OneTimeCommand command_buffer(engine.device(), engine.device().command_pool());
     command_buffer().copyBuffer(stage_buffer.vkbuffer(), storage_buffer->vkbuffer(),
                                 {vk::BufferCopy{.size = storage_buffer_size}});
-
-
-    /* 进行一次 release，为了和 graphics pass 的 acqurie 匹配 */
-    if (!Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute()))
-    {
-        command_buffer().pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eBottomOfPipe,
-                                         {}, {},
-                                         {vk::BufferMemoryBarrier{
-                                                 .srcAccessMask       = vk::AccessFlagBits::eTransferWrite,
-                                                 .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                                 .dstQueueFamilyIndex = _device->queue().family_index,
-                                                 .buffer              = storage_buffer->vkbuffer(),
-                                                 .offset              = 0,
-                                                 .size                = storage_buffer_size,
-                                         }},
-                                         {});
-    }
 
 
     command_buffer.exec();
 }
 
 
-void NBody::App::graphics_uniform_buffer_prepare()
+void NBody::App::graphics_create_uniform_buffer()
 {
-    graphics.ubo.projection = glm::perspective(glm::radians(60.f),
-                                               static_cast<float>(_swapchain->get_extent().width)
-                                                       / static_cast<float>(_swapchain->get_extent().height),
-                                               0.1f, 256.f);
-    graphics.ubo.projection[1][1] *= -1.f;
-    graphics.ubo.view       = glm::lookAt(glm::vec3(8.f, 8.f, 8.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
-    graphics.ubo.screen_dim = glm::vec2(static_cast<float>(_swapchain->get_extent().width),
-                                        static_cast<float>(_swapchain->get_extent().height));
+    graphics_update_uniform_data();
 
-
-    for (auto& uniform_buffer: graphics.uniform_buffers)
+    for (auto& payload: graphics.payloads)
     {
-        uniform_buffer =
-                new Hiss::Buffer(*_device, sizeof(graphics.ubo), vk::BufferUsageFlagBits::eUniformBuffer,
-                                 vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-        uniform_buffer->memory_copy_in(&graphics.ubo, sizeof(graphics.ubo));
+        payload.uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(graphics.ubo));
+        payload.uniform_buffer->memory_copy(&graphics.ubo, sizeof(graphics.ubo));
     }
 }
 
@@ -453,12 +374,10 @@ void NBody::App::compute_uniform_buffer_prepare()
 
 
     /* init uniform buffers */
-    for (auto& uniform_buffer: compute.uniform_buffers)
+    for (auto& payload: compute.payloads)
     {
-        uniform_buffer =
-                new Hiss::Buffer(*_device, sizeof(compute.ubo), vk::BufferUsageFlagBits::eUniformBuffer,
-                                 vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
-        uniform_buffer->memory_copy_in(&compute.ubo, sizeof(compute.ubo));
+        payload.uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(compute.ubo));
+        payload.uniform_buffer->memory_copy(&compute.ubo, sizeof(compute.ubo));
     }
 }
 
@@ -466,26 +385,27 @@ void NBody::App::compute_uniform_buffer_prepare()
 void NBody::App::graphics_pipeline_prepare()
 {
     /* shader stage */
-    graphics.pipeline_state.shader_stage_add(
-            _shader_loader->load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
-    graphics.pipeline_state.shader_stage_add(
-            _shader_loader->load(graphics.frag_shader_path, vk::ShaderStageFlagBits::eFragment));
+    graphics.pipeline_template.shader_stages.push_back(
+            engine.shader_loader().load(graphics.vert_shader_path, vk::ShaderStageFlagBits::eVertex));
+    graphics.pipeline_template.shader_stages.push_back(
+            engine.shader_loader().load(graphics.frag_shader_path, vk::ShaderStageFlagBits::eFragment));
+
 
     /* vertex, index and assembly */
-    graphics.pipeline_state.vertex_input_binding_set({vk::VertexInputBindingDescription{
+    graphics.pipeline_template.vertex_bindings.push_back({vk::VertexInputBindingDescription{
             .binding   = 0,
             .stride    = sizeof(Particle),
             .inputRate = vk::VertexInputRate::eVertex,
     }});
-    graphics.pipeline_state.vertex_input_attribute_set({
+    graphics.pipeline_template.vertex_attributes = {
             vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, pos)},
             vk::VertexInputAttributeDescription{1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, vel)},
-    });
-    graphics.pipeline_state.input_assemly_set(vk::PrimitiveTopology::ePointList);
+    };
+    graphics.pipeline_template.assembly_state.topology = vk::PrimitiveTopology::ePointList;
 
 
     /* additive blend */
-    graphics.pipeline_state.color_blend_attachment_set(vk::PipelineColorBlendAttachmentState{
+    graphics.pipeline_template.color_blend_state = vk::PipelineColorBlendAttachmentState{
             .blendEnable         = VK_TRUE,
             .srcColorBlendFactor = vk::BlendFactor::eOne,
             .dstColorBlendFactor = vk::BlendFactor::eOne,
@@ -495,83 +415,91 @@ void NBody::App::graphics_pipeline_prepare()
             .alphaBlendOp        = vk::BlendOp::eAdd,
             .colorWriteMask      = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG
                             | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-    });
+    };
 
 
     /* depth test */
-    graphics.pipeline_state.depth_set(vk::PipelineDepthStencilStateCreateInfo{
+    graphics.pipeline_template.depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo{
             .depthTestEnable  = VK_FALSE,
             .depthWriteEnable = VK_FALSE,
             .depthCompareOp   = vk::CompareOp::eAlways,
             .back             = {.compareOp = vk::CompareOp::eAlways},
-    });
+    };
+
 
     /* pipeline layout */
-    graphics.pipeline_layout = _device->vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
-            .setLayoutCount = 1,
-            .pSetLayouts    = &graphics.descriptor_set_layout,
-    });
-    graphics.pipeline_state.pipeline_layout_set(graphics.pipeline_layout);
+    assert(graphics.descriptor_set_layout);
+    graphics.pipeline_template.pipeline_layout = graphics.pipeline_layout =
+            engine.vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
+                    .setLayoutCount = 1,
+                    .pSetLayouts    = &graphics.descriptor_set_layout,
+            });
+
+
+    // 设置 framebuffer
+    graphics.pipeline_template.color_attach_formats = {engine.color_format()};
+    graphics.pipeline_template.depth_attach_format  = engine.depth_format();
 
 
     /* dynamic state */
-    graphics.pipeline_state.dynamic_state_add(vk::DynamicState::eViewport);
-    graphics.pipeline_state.dynamic_state_add(vk::DynamicState::eScissor);
+    graphics.pipeline_template.dynamic_states.push_back(vk::DynamicState::eViewport);
+    graphics.pipeline_template.dynamic_states.push_back(vk::DynamicState::eScissor);
 
 
-    graphics.pipeline = graphics.pipeline_state.generate(*_device);
+    graphics.pipeline = graphics.pipeline_template.generate(engine.device());
 }
 
 
-void NBody::App::graphics_descriptor_set_prepare()
+void NBody::App::graphics_prepare_descriptor_set()
 {
     /* descriptor set layout */
-    graphics.descriptor_set_layout = _device->vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
+    graphics.descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
             .bindingCount = static_cast<uint32_t>(graphics_descriptor_bindings.size()),
             .pBindings    = graphics_descriptor_bindings.data(),
     });
 
 
     /* 创建 descriptor sets */
-    assert(graphics.descriptor_set_layout);
-    std::vector<vk::DescriptorSetLayout> set_layouts(IN_FLIGHT_CNT, graphics.descriptor_set_layout);
-    graphics.descriptor_sets = _device->vkdevice().allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
-            .descriptorPool     = descriptor_pool,
+    std::vector<vk::DescriptorSetLayout> set_layouts(graphics.payloads.size(), graphics.descriptor_set_layout);
+    auto descriptor_sets = engine.vkdevice().allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+            .descriptorPool     = engine.descriptor_pool(),
             .descriptorSetCount = static_cast<uint32_t>(set_layouts.size()),
             .pSetLayouts        = set_layouts.data(),
     });
+    for (int i = 0; i < graphics.payloads.size(); ++i)
+        graphics.payloads[i].descriptor_set = descriptor_sets[i];
 
 
     /* 将 descriptor set 与 buffer，image 绑定起来 */
     vk::DescriptorImageInfo particle_image_descriptor = {
             .sampler     = graphics.tex_particle->sampler(),
-            .imageView   = graphics.tex_particle->image_view(),
+            .imageView   = graphics.tex_particle->image().view().vkview,
             .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
     };
     vk::DescriptorImageInfo gradient_image_descriptor = {
             .sampler     = graphics.tex_gradient->sampler(),
-            .imageView   = graphics.tex_gradient->image_view(),
+            .imageView   = graphics.tex_gradient->image().view().vkview,
             .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
     };
-    for (size_t i = 0; i < graphics.descriptor_sets.size(); ++i)
+    for (auto& payload: graphics.payloads)
     {
-        vk::DescriptorBufferInfo buffer_descriptor = {graphics.uniform_buffers[i]->vkbuffer(), 0, VK_WHOLE_SIZE};
+        vk::DescriptorBufferInfo buffer_descriptor = {payload.uniform_buffer->vkbuffer(), 0, VK_WHOLE_SIZE};
 
-        _device->vkdevice().updateDescriptorSets(
+        engine.vkdevice().updateDescriptorSets(
                 {
-                        vk::WriteDescriptorSet{.dstSet          = graphics.descriptor_sets[i],
+                        vk::WriteDescriptorSet{.dstSet          = payload.descriptor_set,
                                                .dstBinding      = 0,
                                                .dstArrayElement = 0,
                                                .descriptorCount = 1,
                                                .descriptorType  = vk::DescriptorType::eCombinedImageSampler,
                                                .pImageInfo      = &particle_image_descriptor},
-                        vk::WriteDescriptorSet{.dstSet          = graphics.descriptor_sets[i],
+                        vk::WriteDescriptorSet{.dstSet          = payload.descriptor_set,
                                                .dstBinding      = 1,
                                                .dstArrayElement = 0,
                                                .descriptorCount = 1,
                                                .descriptorType  = vk::DescriptorType::eCombinedImageSampler,
                                                .pImageInfo      = &gradient_image_descriptor},
-                        vk::WriteDescriptorSet{.dstSet          = graphics.descriptor_sets[i],
+                        vk::WriteDescriptorSet{.dstSet          = payload.descriptor_set,
                                                .dstBinding      = 2,
                                                .dstArrayElement = 0,
                                                .descriptorCount = 1,
@@ -585,196 +513,131 @@ void NBody::App::graphics_descriptor_set_prepare()
 
 void NBody::App::graphics_load_assets()
 {
-    graphics.tex_particle = new Hiss::Texture(*_device, graphics.tex_particle_path, false);
-    graphics.tex_gradient = new Hiss::Texture(*_device, graphics.tex_gradient_path, false);
+    graphics.tex_particle = new Hiss::Texture(engine.device(), engine.allocator, graphics.tex_particle_path, false);
+    graphics.tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, graphics.tex_gradient_path, false);
 }
 
 
-void NBody::App::graphcis_command_record(vk::CommandBuffer command_buffer, vk::Framebuffer framebuffer,
-                                         vk::DescriptorSet descriptor_set, vk::Image color_image)
+void NBody::App::graphics_record_command(vk::CommandBuffer command_buffer, Hiss::Frame& frame,
+                                         Graphics::Payload& payload)
 {
     command_buffer.begin(vk::CommandBufferBeginInfo{});
 
-    const std::array<vk::ClearValue, 2> clear_values = {
-            vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.f}}},
-            vk::ClearValue{.depthStencil = {1.f, 0}},
+    // execution barrier: depth attachment
+    graphics.depth_image->execution_barrier(
+            command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
+            {vk::PipelineStageFlagBits::eEarlyFragmentTests,
+             vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite});
+
+
+    // layout transition: color attachment 不需要之前的数据
+    frame.image().transfer_layout(
+            command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, {}},
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            vk::ImageLayout::eColorAttachmentOptimal, true);
+
+
+    // pipeline barrier: storage buffer
+    assert(storage_buffer);
+    storage_buffer->memory_barrier(command_buffer,
+                                   {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
+                                   {vk::PipelineStageFlagBits::eVertexInput, vk::AccessFlagBits::eVertexAttributeRead});
+
+
+    // framebuffer 的信息
+    auto color_attach_info = vk::RenderingAttachmentInfo{
+            .imageView   = frame.image().view().vkview,
+            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .loadOp      = vk::AttachmentLoadOp::eClear,
+            .storeOp     = vk::AttachmentStoreOp::eStore,
+            .clearValue  = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.f}}},
+    };
+    auto depth_attach_info = vk::RenderingAttachmentInfo{
+            .imageView   = graphics.depth_image->view().vkview,
+            .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+            .loadOp      = vk::AttachmentLoadOp::eClear,
+            .storeOp     = vk::AttachmentStoreOp::eDontCare,
+            .clearValue  = vk::ClearValue{.depthStencil = {1.f, 0}},
     };
 
-
-    bool need_transfer_compute = !Hiss::Queue::is_same_queue_family(_device->queue(), _device->queue_compute());
-
-    /* execution barrier(depth attachment) */
-    command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests,
-                                   vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, {}, {},
-                                   {vk::ImageMemoryBarrier{
-                                           .dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentRead
-                                                          | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-                                           .oldLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                           .newLayout        = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                           .image            = _depth_image->vkimage(),
-                                           .subresourceRange = _depth_image_view->subresource_range(),
-                                   }});
-
-    /* layout transition(color attachment): present -> color attach；不需要保持数据，不需要 queue transfer */
-    command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe,
-                                   vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, {}, {},
-                                   {vk::ImageMemoryBarrier{
-                                           .dstAccessMask    = vk::AccessFlagBits::eColorAttachmentWrite,
-                                           .oldLayout        = vk::ImageLayout::eUndefined,
-                                           .newLayout        = vk::ImageLayout::eColorAttachmentOptimal,
-                                           .image            = color_image,
-                                           .subresourceRange = _swapchain->get_image_subresource_range(),
-                                   }});
-
-    /* queue ownership transfer acquire(storage buffer): compute -> graphics */
-    if (need_transfer_compute)
-    {
-        command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
-                                       vk::PipelineStageFlagBits::eVertexInput, {}, {},
-                                       {vk::BufferMemoryBarrier{
-                                               .dstAccessMask       = vk::AccessFlagBits::eVertexAttributeRead,
-                                               .srcQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .dstQueueFamilyIndex = _device->queue().family_index,
-                                               .buffer              = storage_buffer->vkbuffer(),
-                                               .offset              = 0,
-                                               .size                = storage_buffer->buffer_size(),
-                                       }},
-                                       {});
-    }
-
-
     /* render pass */
-    command_buffer.beginRenderPass(
-            vk::RenderPassBeginInfo{
-                    .renderPass      = _simple_render_pass,
-                    .framebuffer     = framebuffer,
-                    .renderArea      = {.offset = {0, 0}, .extent = _swapchain->get_extent()},
-                    .clearValueCount = static_cast<uint32_t>(clear_values.size()),
-                    .pClearValues    = clear_values.data(),
-            },
-            vk::SubpassContents::eInline);
-    command_buffer.setViewport(0, {vk::Viewport{0.f, 0.f, (float) _swapchain->get_extent().width,
-                                                (float) _swapchain->get_extent().height, 0.f, 1.f}});
-    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = _swapchain->get_extent()}});
+    command_buffer.beginRendering(vk::RenderingInfo{
+            .renderArea           = {.extent = engine.extent()},
+            .layerCount           = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments    = &color_attach_info,
+            .pDepthAttachment     = &depth_attach_info,
+    });
+
+    command_buffer.setViewport(0, {vk::Viewport{
+                                          0,
+                                          0,
+                                          (float) engine.extent().width,
+                                          (float) engine.extent().height,
+                                          0.f,
+                                          1.f,
+                                  }});
+    command_buffer.setScissor(0, {vk::Rect2D{.offset = {0, 0}, .extent = engine.extent()}});
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, graphics.pipeline);
-    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipeline_layout, 0, {descriptor_set},
-                                      {});
+    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, graphics.pipeline_layout, 0,
+                                      {payload.descriptor_set}, {});
     command_buffer.bindVertexBuffers(0, {storage_buffer->vkbuffer()}, {0});
     command_buffer.draw(num_particles, 1, 0, 0);
-    command_buffer.endRenderPass();
+    command_buffer.endRendering();
 
 
-    /* queue release(storage buffer): graphics -> compute */
-    if (need_transfer_compute)
-    {
-        command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eVertexInput,
-                                       vk::PipelineStageFlagBits::eComputeShader, {}, {},
-                                       {vk::BufferMemoryBarrier{
-                                               .srcAccessMask       = vk::AccessFlagBits::eVertexAttributeRead,
-                                               .srcQueueFamilyIndex = _device->queue().family_index,
-                                               .dstQueueFamilyIndex = _device->queue_compute().family_index,
-                                               .buffer              = storage_buffer->vkbuffer(),
-                                               .offset              = 0,
-                                               .size                = storage_buffer->buffer_size(),
-                                       }},
-                                       {});
-    }
+    // layout transition: color attachment
+    frame.image().transfer_layout(
+            command_buffer,
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            {vk::PipelineStageFlagBits::eBottomOfPipe}, vk::ImageLayout::ePresentSrcKHR, false);
 
-    /* queue release(color attach): graphics -> present; layout transition: color -> present */
-    command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
-                                   vk::PipelineStageFlagBits::eBottomOfPipe, {}, {}, {},
-                                   {vk::ImageMemoryBarrier{
-                                           .srcAccessMask       = vk::AccessFlagBits::eColorAttachmentWrite,
-                                           .oldLayout           = vk::ImageLayout::eColorAttachmentOptimal,
-                                           .newLayout           = vk::ImageLayout::ePresentSrcKHR,
-                                           .srcQueueFamilyIndex = _device->queue().family_index,
-                                           .dstQueueFamilyIndex = _device->queue_present().family_index,
-                                           .image               = color_image,
-                                           .subresourceRange    = _swapchain->get_image_subresource_range(),
-                                   }});
 
     command_buffer.end();
 }
 
 
-void NBody::App::update(double delta_time) noexcept
+void NBody::App::update() noexcept
 {
-    delta_time /= 1000;
-    Hiss::Engine::preupdate(delta_time);
+    double delta_time = engine.timer().duration_ms() / 1000.0;    // 以秒为单位
 
-    prepare_frame();
-
+    engine.frame_manager().acquire_frame();
+    auto& frame            = engine.current_frame();
+    auto& graphics_payload = graphics.payloads[frame.frame_id()];
+    auto& compute_payload  = compute.payloads[frame.frame_id()];
 
     /* update uniform buffers */
-    compute_uniform_update(*compute.uniform_buffers[current_frame_index()], (float) delta_time);
-    graphics_uniform_update(*graphics.uniform_buffers[current_frame_index()], (float) delta_time);
+    compute_update_uniform(*compute_payload.uniform_buffer, (float) delta_time);
+    graphics_update_uniform(*graphics_payload.uniform_buffer);
 
 
     /* record graphics command */
-    vk::CommandBuffer graphics_command_buffer = current_frame().command_buffer_graphics();
+    vk::CommandBuffer graphics_command_buffer = graphics_payload.command_buffer;
     graphics_command_buffer.reset();
-    graphcis_command_record(graphics_command_buffer, _framebuffers[current_swapchain_image_index()],
-                            graphics.descriptor_sets[current_frame_index()],
-                            _swapchain->get_image(current_swapchain_image_index()));
+    graphics_record_command(graphics_command_buffer, frame, graphics_payload);
 
 
     /* graphics draw */
-    std::array<vk::PipelineStageFlags, 2> graphics_wait_stages = {
-            vk::PipelineStageFlagBits::eVertexInput,          // 此阶段等待 compute pipeline
-            vk::PipelineStageFlagBits::eLateFragmentTests,    // 此阶段等待 swapchian 的 image
-    };
-    std::array<vk::Semaphore, 2> grahics_wait_semaphores = {
-            compute.semaphores[current_frame_index()],
-            current_frame().semaphore_swapchain_acquire(),
-    };
-    std::array<vk::Semaphore, 2> graphics_signal_semaphores = {
-            graphics.semaphores[current_frame_index()],
-            current_frame().semaphore_render_complete(),
-    };
-    vk::Fence graphics_fence = _device->fence_pool().acquire(false);
-    _device->queue().queue.submit(
-            vk::SubmitInfo{
-                    .waitSemaphoreCount   = static_cast<uint32_t>(grahics_wait_semaphores.size()),
-                    .pWaitSemaphores      = grahics_wait_semaphores.data(),
-                    .pWaitDstStageMask    = graphics_wait_stages.data(),
-                    .commandBufferCount   = 1,
-                    .pCommandBuffers      = &graphics_command_buffer,
-                    .signalSemaphoreCount = static_cast<uint32_t>(graphics_signal_semaphores.size()),
-                    .pSignalSemaphores    = graphics_signal_semaphores.data(),
+    engine.queue().submit_commands(
+            {
+                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()},
             },
-            graphics_fence);
-    current_frame().fence_push(graphics_fence);
+            {graphics_payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
 
 
-    submit_frame();
+    engine.frame_manager().submit_frame();
 
 
-    /* compute: 更新 storage buffer */
-    vk::PipelineStageFlags compute_wait_stage        = vk::PipelineStageFlagBits::eComputeShader;
-    vk::Semaphore          compute_wait_semaphore    = graphics.semaphores[current_frame_index()];
-    vk::Semaphore          compute_singlal_semaphore = compute.semaphores[current_frame_index()];
-    vk::Fence              compute_fence             = _device->fence_pool().acquire(false);
-    vk::CommandBuffer      compute_command_buffer    = current_frame().command_buffer_compute();
-    _device->queue_compute().queue.submit(
-            vk::SubmitInfo{
-                    .waitSemaphoreCount   = 1,
-                    .pWaitSemaphores      = &compute_wait_semaphore,
-                    .pWaitDstStageMask    = &compute_wait_stage,
-                    .commandBufferCount   = 1,
-                    .pCommandBuffers      = &compute_command_buffer,
-                    .signalSemaphoreCount = 1,
-                    .pSignalSemaphores    = &compute_singlal_semaphore,
-            },
-            compute_fence);
-    current_frame().fence_push(compute_fence);
+    // compute 阶段，不用重新录制 command buffer
+    engine.queue().submit_commands({}, {compute_payload.command_buffer}, {}, frame.insert_fence());
 }
 
 
-void NBody::App::compute_uniform_update(Hiss::Buffer& buffer, float delta_time)
+void NBody::App::compute_update_uniform(Hiss::UniformBuffer& buffer, float delta_time)
 {
     compute.ubo.delta_time = delta_time;
 
-    buffer.memory_copy_in(&compute.ubo, sizeof(compute.ubo));
+    buffer.memory_copy(&compute.ubo, sizeof(compute.ubo));
 }
 
 
@@ -782,17 +645,14 @@ void NBody::App::compute_clean()
 {
     spdlog::info("[NBody] compute clean");
 
-    for (auto& semaphore: compute.semaphores)
+
+    engine.vkdevice().destroy(compute.descriptor_set_layout);
+    engine.vkdevice().destroy(compute.pipeline_layout);
+    engine.vkdevice().destroy(compute.pipeline_intergrate);
+    engine.vkdevice().destroy(compute.pipeline_calculate);
+    for (auto& payload: compute.payloads)
     {
-        _device->vkdevice().destroy(semaphore);
-    }
-    _device->vkdevice().destroy(compute.descriptor_set_layout);
-    _device->vkdevice().destroy(compute.pipeline_layout);
-    _device->vkdevice().destroy(compute.pipeline_intergrate);
-    _device->vkdevice().destroy(compute.pipeline_calculate);
-    for (auto& uniform_buffer: compute.uniform_buffers)
-    {
-        DELETE(uniform_buffer);
+        DELETE(payload.uniform_buffer);
     }
 }
 
@@ -804,23 +664,40 @@ void NBody::App::graphics_clean()
     DELETE(graphics.tex_particle);
     DELETE(graphics.tex_gradient);
 
-    for (auto& semaphore: graphics.semaphores)
-    {
-        _device->vkdevice().destroy(semaphore);
-    }
+    DELETE(graphics.depth_image);
 
-    _device->vkdevice().destroy(graphics.descriptor_set_layout);
-    _device->vkdevice().destroy(graphics.pipeline_layout);
-    _device->vkdevice().destroy(graphics.pipeline);
-    for (auto& uniform_buffer: graphics.uniform_buffers)
+
+    engine.vkdevice().destroy(graphics.descriptor_set_layout);
+    engine.vkdevice().destroy(graphics.pipeline_layout);
+    engine.vkdevice().destroy(graphics.pipeline);
+    for (auto& payload: graphics.payloads)
     {
-        DELETE(uniform_buffer);
+        DELETE(payload.uniform_buffer);
     }
 }
 
 
-void NBody::App::graphics_uniform_update(Hiss::Buffer& buffer, float delta_time)
+void NBody::App::graphics_update_uniform(Hiss::UniformBuffer& buffer)
 {
-    // IMPL，最好是检测到 window event 时更新
-    // IMPL window 大小改变时，需要改变 ubo 的 screen dim
+    graphics_update_uniform_data();
+    buffer.memory_copy(&graphics.ubo, sizeof(graphics.ubo));
+}
+
+
+void NBody::App::graphics_resize()
+{
+    delete graphics.depth_image;
+    graphics.depth_image = engine.create_depth_image();
+}
+
+
+void NBody::App::graphics_update_uniform_data()
+{
+    graphics.ubo.projection = glm::perspective(
+            glm::radians(60.f), static_cast<float>(engine.extent().width) / static_cast<float>(engine.extent().height),
+            0.1f, 256.f);
+    graphics.ubo.projection[1][1] *= -1.f;
+    graphics.ubo.view = glm::lookAt(glm::vec3(8.f, 8.f, 8.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+    graphics.ubo.screen_dim =
+            glm::vec2(static_cast<float>(engine.extent().width), static_cast<float>(engine.extent().height));
 }

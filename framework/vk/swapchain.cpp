@@ -138,7 +138,7 @@ void Hiss::Swapchain::submit_image(uint32_t image_index, vk::Semaphore wait_sema
             .pImageIndices      = &image_index,
     };
 
-    vk::Result result = _device.queue().queue.presentKHR(present_info);
+    vk::Result result = _device.queue().vkqueue().presentKHR(present_info);
 
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR)
     {

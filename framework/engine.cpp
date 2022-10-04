@@ -19,7 +19,7 @@ void Hiss::Engine::resize()
 {
     _window->on_resize();
     _swapchain     = Swapchain::resize(_swapchain, *_device, *_window, _surface);
-    _frame_manager = Hiss::FrameManager::resize(_frame_manager, *_device, *_swapchain);
+    _frame_manager = Hiss::FrameManager::on_resize(_frame_manager, *_device, *_swapchain);
 }
 
 
@@ -115,14 +115,11 @@ void Hiss::Engine::clean()
 
 void Hiss::Engine::preupdate() noexcept
 {
-    _frame_manager->acquire_frame();
+    timer._value.tick();
 }
 
 
-void Hiss::Engine::postupdate() noexcept
-{
-    _frame_manager->submit_frame();
-}
+void Hiss::Engine::postupdate() noexcept {}
 
 
 Hiss::Image2D* Hiss::Engine::create_depth_image() const

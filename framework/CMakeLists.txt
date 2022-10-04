@@ -35,7 +35,7 @@ set(HEADER_FILES
         vk/image.hpp
         vk/model.hpp
         vk/swapchain.hpp
-        #vk/texture.hpp
+        vk/texture.hpp
         utils/tools.hpp
         vk/vertex.hpp
         vk/vk_common.hpp
@@ -53,7 +53,7 @@ set(SOURCE_FILES
         vk/image.cpp
         vk/framebuffer.cpp
         vk/vertex.cpp
-        # vk/texture.cpp
+        vk/texture.cpp
         vk/instance.cpp
         window.cpp
         vk/device.cpp

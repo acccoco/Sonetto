@@ -26,20 +26,26 @@ struct UniformData
 };
 
 
-class App : Hiss::IApplication
+class App : public Hiss::IApplication
 {
 public:
     explicit App(Hiss::Engine& engine)
-        : engine(engine)
+        : Hiss::IApplication(engine)
     {}
+    ~App() override = default;
 
 
+#pragma region 特殊的接口
+public:
     void prepare() final;
     void update() noexcept final;
     void resize() final;
     void clean() final;
 
+#pragma endregion
 
+
+#pragma region 准备数据的方法
 private:
     void create_pipeline();
     void record_command(vk::CommandBuffer command_buffer, const FramePayload& payload, const Hiss::Frame& frame);
@@ -50,10 +56,11 @@ private:
     // 创建 UBO，并写入初始值
     void create_uniform_buffer();
 
+#pragma endregion
+
+
+#pragma region 应用的成员字段
 private:
-    Hiss::Engine& engine;
-
-
     Hiss::PipelineTemplate  _pipeline_template;
     vk::Pipeline            _pipeline;
     vk::PipelineLayout      _pipeline_layout;
@@ -69,15 +76,16 @@ private:
     Hiss::UniformBuffer* _uniform_buffer{};
 
     std::vector<FramePayload> _payloads = {};
+#pragma endregion
 
 
-#pragma region 数据
-
+#pragma region 应用数据
+private:
     // 顶点数据
     std::vector<Hiss::Vertex2DColor> vertices = {
-            {{-0.5f, 0.0f}, {0.8f, 0.0f, 0.0f}},    //
-            {{0.5f, 0.5f}, {0.0f, 0.5f, 0.0f}},     //
-            {{0.5f, 0.0f}, {0.0f, 0.0f, 0.5f}},     //
+            {{-0.5f, -0.5f}, {0.8f, 0.0f, 0.0f}},    //
+            {{0.5f, 0.5f}, {0.0f, 0.5f, 0.0f}},      //
+            {{0.5f, -0.5f}, {0.0f, 0.0f, 0.5f}},     //
     };
 
     // 模型的顶点索引
