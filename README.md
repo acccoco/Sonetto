@@ -16,4 +16,8 @@ This is my real-time renderer, which I use to learn Rulkan and real-time renderi
 
 
 
-
+### Compute Shader Particles
+compute shader + particles 实现简单的曲面动画
+![ripple](./doc/compute%20shader%20particle/ripple.jpg)
+![sphere](./doc/compute%20shader%20particle/sphere.jpg)
+![multi wave](./doc/compute%20shader%20particle/multi%20wave.jpg)
