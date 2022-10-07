@@ -8,12 +8,12 @@ struct Particle
 };
 
 // Binding 0 : Position storage buffer
-layout (std140, binding = 0) buffer Pos
+layout (std430, set = 0, binding = 0) buffer Pos
 {
     Particle particles[];
 };
 
-layout (binding = 1) uniform UBO
+layout (std140, set = 0, binding = 1) uniform UBO
 {
     float deltaT;
     int particleCount;
@@ -24,7 +24,7 @@ layout (constant_id = 2) const float GRAVITY = 0.002;
 layout (constant_id = 3) const float POWER = 0.75;
 layout (constant_id = 4) const float SOFTEN = 0.05;
 
-layout (local_size_x_id = 0) in;
+layout (local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
 
 // Share data between computer shader invocations to speed up caluclations
 shared vec4 sharedData[SHARED_DATA_SIZE];
@@ -33,25 +33,21 @@ shared vec4 sharedData[SHARED_DATA_SIZE];
 
 void main()
 {
-    // Current SSBO index
+    // 每个 shader invocation 对应一个 particle
+    // shader invocation 数量是某个数的整数倍，可能和 particles 的数量不同
     uint index = gl_GlobalInvocationID.x;
-    if (index >= ubo.particleCount)
-    return;
+    if (index >= ubo.particleCount) return;
 
     vec4 position = particles[index].pos;
     vec4 velocity = particles[index].vel;
     vec4 acceleration = vec4(0.0);
 
-    for (int i = 0; i < ubo.particleCount; i += SHARED_DATA_SIZE)
+    for (uint i = 0; i < ubo.particleCount; i += SHARED_DATA_SIZE)
     {
         if (i + gl_LocalInvocationID.x < ubo.particleCount)
-        {
-            sharedData[gl_LocalInvocationID.x] = particles[i + gl_LocalInvocationID.x].pos;
-        }
+        sharedData[gl_LocalInvocationID.x] = particles[i + gl_LocalInvocationID.x].pos;
         else
-        {
-            sharedData[gl_LocalInvocationID.x] = vec4(0.0);
-        }
+        sharedData[gl_LocalInvocationID.x] = vec4(0.0);
 
         barrier();
 
@@ -62,7 +58,8 @@ void main()
             acceleration.xyz += GRAVITY * len * other.w / pow(dot(len, len) + SOFTEN, POWER);
         }
 
-        barrier();
+        // 去掉这个 barrier，似乎也不影响
+        // barrier();
     }
 
     particles[index].vel.xyz += ubo.deltaT * TIME_FACTOR * acceleration.xyz;

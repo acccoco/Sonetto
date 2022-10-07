@@ -1,0 +1,163 @@
+#version 450
+#define PI 3.14159265358979323846
+struct Particle
+{
+    vec4 pos;
+    vec4 vel;   // w 分量表示颜色纹理的采样坐标，范围 [0, 1]
+};
+
+
+layout (push_constant) uniform _ {
+    float time;
+    uint kernel_id;
+    float trans_progress;
+};
+
+layout (constant_id = 0) const uint DIM = 64;   // 每个方向上各有多少个粒子
+layout (constant_id = 1) const float STEP = 0.1f;
+
+
+// storage buffer
+layout (std430, set = 0, binding = 0) buffer Data {
+    Particle particles[];
+};
+
+// workgroup 的尺寸
+layout (local_size_x_id = 2, local_size_y_id = 3, local_size_z = 1) in;
+
+
+// 根据 global id 得到 uv 坐标 [-1, 1] * [-1, 1]
+vec2 get_uv(uvec3 global_id) {
+    return vec2(global_id.xy + 0.5) * STEP - 1.0;
+}
+
+
+// 将粒子的位置写入 storage buffer
+void set_position(uvec3 global_id, vec3 position) {
+    if (global_id.x >= DIM || global_id.y >= DIM) return;
+
+    // w 分量表示尺寸
+    particles[global_id.x + global_id.y * DIM].pos = vec4(position, 3.0);
+}
+
+
+#pragma region 不同的曲面函数
+// 正弦波的曲面方程
+vec3 Wave(float u, float v)
+{
+    vec3 p;
+    p.x = u;
+    p.y = sin(PI * (u + v + time));
+    p.z = v;
+    return p;
+}
+
+vec3 MultiWave(float u, float v)
+{
+    vec3 p;
+    p.x = u;
+    p.y = sin(PI * (u + 0.5 * time));
+    p.y += 0.5 * sin(2.0 * PI * (v + time));
+    p.y += sin(PI * (u + v + 0.25 * time));
+    p.y *= 1.0 / 2.5;
+    p.z = v;
+    return p;
+}
+
+vec3 Ripple(float u, float v)
+{
+    float d = sqrt(u * u + v * v);
+    vec3 p;
+    p.x = u;
+    p.y = sin(PI * (4.0 * d - time));
+    p.y /= 1.0 + 10.0 * d;
+    p.z = v;
+    return p;
+}
+
+vec3 Sphere(float u, float v)
+{
+    float r = 0.9 + 0.1 * sin(PI * (12.0 * u + 8.0 * v + time));
+    float s = r * cos(0.5 * PI * v);
+    vec3 p;
+    p.x = s * sin(PI * u);
+    p.y = r * sin(0.5 * PI * v);
+    p.z = s * cos(PI * u);
+    return p;
+}
+
+vec3 Torus(float u, float v)
+{
+    float r1 = 0.7 + 0.1 * sin(PI * (8.0 * u + 0.5 * time));
+    float r2 = 0.15 + 0.05 * sin(PI * (16.0 * u + 8.0 * v + 3.0 * time));
+    float s = r2 * cos(PI * v) + r1;
+    vec3 p;
+    p.x = s * sin(PI * u);
+    p.y = r2 * sin(PI * v);
+    p.z = s * cos(PI * u);
+    return p;
+}
+
+
+// 各种转变的函数
+#define KERNEL_MORPH_FUNCTION(func1, func2) \
+vec3 func1##To##func2(float u, float v) \
+{   \
+    return mix(func1(u, v), func2(u, v), trans_progress);   \
+}
+
+KERNEL_MORPH_FUNCTION(Wave, MultiWave)
+KERNEL_MORPH_FUNCTION(Wave, Ripple)
+KERNEL_MORPH_FUNCTION(Wave, Sphere)
+KERNEL_MORPH_FUNCTION(Wave, Torus)
+
+KERNEL_MORPH_FUNCTION(MultiWave, Wave)
+KERNEL_MORPH_FUNCTION(MultiWave, Ripple)
+KERNEL_MORPH_FUNCTION(MultiWave, Sphere)
+KERNEL_MORPH_FUNCTION(MultiWave, Torus)
+
+KERNEL_MORPH_FUNCTION(Ripple, Wave)
+KERNEL_MORPH_FUNCTION(Ripple, MultiWave)
+KERNEL_MORPH_FUNCTION(Ripple, Sphere)
+KERNEL_MORPH_FUNCTION(Ripple, Torus)
+
+KERNEL_MORPH_FUNCTION(Sphere, Wave)
+KERNEL_MORPH_FUNCTION(Sphere, MultiWave)
+KERNEL_MORPH_FUNCTION(Sphere, Ripple)
+KERNEL_MORPH_FUNCTION(Sphere, Torus)
+
+KERNEL_MORPH_FUNCTION(Torus, Wave)
+KERNEL_MORPH_FUNCTION(Torus, MultiWave)
+KERNEL_MORPH_FUNCTION(Torus, Ripple)
+KERNEL_MORPH_FUNCTION(Torus, Sphere)
+
+#pragma endregion
+
+
+
+void main() {
+vec2 uv = get_uv(gl_GlobalInvocationID);
+vec3 position;
+switch (kernel_id)
+{
+case 0: position = Wave(uv.x, uv.y); break;
+case 1: position = WaveToMultiWave(uv.x, uv.y); break;
+
+case 2: position = MultiWave(uv.x, uv.y); break;
+case 3: position = MultiWaveToSphere(uv.x, uv.y); break;
+
+case 4: position = Sphere(uv.x, uv.y); break;
+case 5: position = SphereToRipple(uv.x, uv.y); break;
+
+case 6: position = Ripple(uv.x, uv.y); break;
+case 7: position = RippleToTorus(uv.x, uv.y); break;
+
+case 8: position = Torus(uv.x, uv.y); break;
+case 9: position = TorusToWave(uv.x, uv.y); break;
+}
+
+
+set_position(gl_GlobalInvocationID, position);
+
+
+}

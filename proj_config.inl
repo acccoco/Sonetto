@@ -25,6 +25,7 @@ const struct
 // 项目的文件夹配置
 const std::filesystem::path assets("${PROJ_ASSETS_DIR}");
 const std::filesystem::path shader_dir("${PROJ_SHADER_DIR}");
+const std::filesystem::path texture = assets / "textures";
 
 
 inline std::string ASSETS(const std::string& obj)

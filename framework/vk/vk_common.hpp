@@ -100,4 +100,5 @@ struct StageSemaphore
     vk::Semaphore          semaphore = {};
 };
 
+
 }    // namespace Hiss

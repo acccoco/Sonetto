@@ -20,9 +20,9 @@ struct UniformData
     alignas(16) glm::vec3 color2 = {0.0f, 0.5f, 0.0f};
     alignas(16) glm::vec3 color3 = {0.0f, 0.0f, 0.5f};
     float single                 = 0.1f;
-    alignas(16) float colors[3]  = {0.3f, 0.3f, 0.5f};
-    alignas(16) float colors1[3] = {0.3f, 0.3f, 0.5f};
-    alignas(16) float colors2[3] = {0.5f, 0.3f, 0.5f};
+    alignas(16) float colors[3]  = {0.25f, 0.0f, 0.0f};
+    alignas(16) float colors1[3] = {0.25f, 0.0f, 0.0f};
+    alignas(16) float colors2[3] = {0.5f, 0.3f, 0.0f};
 };
 
 

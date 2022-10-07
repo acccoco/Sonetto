@@ -119,7 +119,10 @@ void Hiss::Engine::preupdate() noexcept
 }
 
 
-void Hiss::Engine::postupdate() noexcept {}
+void Hiss::Engine::postupdate() noexcept
+{
+    _frame_manager->next_frame();
+}
 
 
 Hiss::Image2D* Hiss::Engine::create_depth_image() const

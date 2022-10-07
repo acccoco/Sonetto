@@ -8,7 +8,7 @@ This is my real-time renderer, which I use to learn Rulkan and real-time renderi
 - [x] framework
 - [x] hello triangle
 - [x] mass and mipmap
-- [x] compute shader NBody simulation
+- [x] compute shader ParticleCompute simulation
 - [ ] shadow map
 - [ ] pcss, pcf
 - [ ] ssao, ssdo

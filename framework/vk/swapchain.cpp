@@ -40,12 +40,15 @@ vk::SurfaceFormatKHR Hiss::Swapchain::choose_present_format()
     std::vector<vk::SurfaceFormatKHR> format_list = _device.gpu().vkgpu().getSurfaceFormatsKHR(_surface);
     if (format_list.empty())
         throw std::runtime_error("fail to find surface format.");
+//    for (auto format: format_list)
+//        spdlog::debug("[swpachain] surface supported format: ({}, {})", to_string(format.format),
+//                      to_string(format.colorSpace));
 
+
+    // 优选 srgb
     for (const auto& format: format_list)
         if (format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
-        {
             return format;
-        }
     return format_list.front();
 }
 

@@ -141,8 +141,11 @@ public:
     {
         assert(_current_frame != nullptr);
         _swapchain.submit_image(_current_frame->swapchain_image_index, _current_frame->submit_semaphore());
-        _current_frame = frames._value[(_current_frame->frame_id() + 1) % frames_number._value];
     }
+
+
+    // 进入下一帧，主要是更新 current_frame
+    void next_frame() { _current_frame = frames._value[(_current_frame->frame_id() + 1) % frames_number._value]; }
 
     // 窗口 resize 时调用
     static FrameManager* on_resize(FrameManager* old, Device& device, Swapchain& swapchain)
