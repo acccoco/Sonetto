@@ -13,12 +13,38 @@ namespace ParticleCompute
 {
 struct Graphics
 {
+
+#pragma region layout 部分
     struct UBO    // std140
     {
         alignas(16) glm::mat4 projection;
         alignas(16) glm::mat4 view;
         alignas(16) glm::vec2 screen_dim;
     };
+
+    std::vector<vk::VertexInputBindingDescription> vertex_input_bindings = {
+            {0, sizeof(Particle), vk::VertexInputRate::eVertex},
+    };
+
+
+    std::vector<vk::VertexInputAttributeDescription> vertex_attribute_bindings = {
+            {0, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, pos)},
+            {1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, vel)},
+    };
+
+    const std::filesystem::path vert_shader_path  = shader_dir / "compute_particle/particle.vert";
+    const std::filesystem::path frag_shader_path  = shader_dir / "compute_particle/particle.frag";
+    const std::filesystem::path tex_particle_path = texture / "compute_particle/particle_rgba.png";
+    const std::filesystem::path tex_gradient_path = texture / "compute_particle/particle_gradient_rgba.png";
+
+
+    const std::vector<vk::DescriptorSetLayoutBinding> graphics_descriptor_bindings = {
+            {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
+            {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
+            {2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex},
+    };
+
+#pragma endregion
 
 
     struct Payload
@@ -37,18 +63,6 @@ struct Graphics
 
 
     std::vector<Payload> payloads;
-
-    const std::filesystem::path vert_shader_path  = shader_dir / "compute_particle/particle.vert";
-    const std::filesystem::path frag_shader_path  = shader_dir / "compute_particle/particle.frag";
-    const std::filesystem::path tex_particle_path = texture / "compute_particle/particle_rgba.png";
-    const std::filesystem::path tex_gradient_path = texture / "compute_particle/particle_gradient_rgba.png";
-
-
-    const std::vector<vk::DescriptorSetLayoutBinding> graphics_descriptor_bindings = {{
-            {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-            {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-            {2, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex},
-    }};
 
 
     Hiss::Texture* tex_particle = nullptr;
@@ -77,6 +91,8 @@ public:
     {
         spdlog::info("graphics prepare");
 
+        create_pipeline();
+
         // 初始化每一帧的数据
         payloads.resize(engine.frame_manager().frames_number());
         for (int i = 0; i < payloads.size(); ++i)
@@ -93,7 +109,6 @@ public:
         load_assets();
         create_uniform_buffer();
         prepare_descriptor_set();
-        create_pipeline();
     }
 
 
@@ -174,22 +189,37 @@ private:
 
     void create_pipeline()
     {
-        /* shader stage */
-        pipeline_template.shader_stages.push_back(
-                engine.shader_loader().load(vert_shader_path, vk::ShaderStageFlagBits::eVertex));
-        pipeline_template.shader_stages.push_back(
-                engine.shader_loader().load(frag_shader_path, vk::ShaderStageFlagBits::eFragment));
+        /* descriptor set layout */
+        vk::DescriptorSetLayoutCreateInfo descriptor_info;
+        descriptor_info.setBindings(graphics_descriptor_bindings);
+        descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(descriptor_info);
 
 
-        /* vertex, index and assembly */
-        pipeline_template.vertex_bindings.push_back({vk::VertexInputBindingDescription{
-                .binding   = 0,
-                .stride    = sizeof(Particle),
-                .inputRate = vk::VertexInputRate::eVertex,
-        }});
-        pipeline_template.vertex_attributes = {
-                vk::VertexInputAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, pos)},
-                vk::VertexInputAttributeDescription{1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, vel)},
+        /* pipeline layout */
+        pipeline_layout = engine.vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
+                .setLayoutCount = 1,
+                .pSetLayouts    = &descriptor_set_layout,
+        });
+
+
+        // pipeline 的其他设置
+        pipeline_template = Hiss::PipelineTemplate{
+                .shader_stages = {engine.shader_loader().load(vert_shader_path, vk::ShaderStageFlagBits::eVertex),
+                                  engine.shader_loader().load(frag_shader_path, vk::ShaderStageFlagBits::eFragment)},
+
+                .vertex_bindings      = vertex_input_bindings,
+                .vertex_attributes    = vertex_attribute_bindings,
+                .color_attach_formats = {engine.color_format()},
+                .depth_attach_format  = engine.depth_format(),
+                .pipeline_layout      = pipeline_layout,
+
+                .dynamic_states = {vk::DynamicState::eViewport, vk::DynamicState::eScissor},
+
+                .depth_stencil_state =
+                        vk::PipelineDepthStencilStateCreateInfo{.depthTestEnable  = VK_FALSE,
+                                                                .depthWriteEnable = VK_FALSE,
+                                                                .depthCompareOp   = vk::CompareOp::eAlways,
+                                                                .back = {.compareOp = vk::CompareOp::eAlways}},
         };
         pipeline_template.assembly_state.topology = vk::PrimitiveTopology::ePointList;
 
@@ -209,47 +239,13 @@ private:
         //        };
 
 
-        /* depth test */
-        pipeline_template.depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo{
-                .depthTestEnable  = VK_FALSE,
-                .depthWriteEnable = VK_FALSE,
-                .depthCompareOp   = vk::CompareOp::eAlways,
-                .back             = {.compareOp = vk::CompareOp::eAlways},
-        };
-
-
-        /* pipeline layout */
-        assert(descriptor_set_layout);
-        pipeline_template.pipeline_layout = pipeline_layout =
-                engine.vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
-                        .setLayoutCount = 1,
-                        .pSetLayouts    = &descriptor_set_layout,
-                });
-
-
-        // 设置 framebuffer
-        pipeline_template.color_attach_formats = {engine.color_format()};
-        pipeline_template.depth_attach_format  = engine.depth_format();
-
-
-        /* dynamic state */
-        pipeline_template.dynamic_states.push_back(vk::DynamicState::eViewport);
-        pipeline_template.dynamic_states.push_back(vk::DynamicState::eScissor);
-
-
         pipeline = pipeline_template.generate(engine.device());
     }
 
 
-    // 创建 descriptor_set_layou, descriptor_set，将 descriptor_set 与 buffer 绑定起来
+    // 创建 descriptor_set，将 descriptor_set 与 buffer 绑定起来
     void prepare_descriptor_set()
     {
-        /* descriptor set layout */
-        descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
-                .bindingCount = static_cast<uint32_t>(graphics_descriptor_bindings.size()),
-                .pBindings    = graphics_descriptor_bindings.data(),
-        });
-
 
         /* 创建 descriptor sets */
         std::vector<vk::DescriptorSetLayout> set_layouts(payloads.size(), descriptor_set_layout);

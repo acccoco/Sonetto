@@ -12,23 +12,36 @@
 
 namespace ParticleCompute
 {
+
+
 // 函数曲面这个应用所需的 compute 相关资源
 // 每个粒子是一个 Particle 类的实例，共有 dim * dim 个粒子
 struct Surface
 {
+
+
+#pragma region layout 相关
+
+
     struct Specialization
     {
-        const uint32_t dim        = 256;            // constant id 0 一个方向上粒子的数量，正方形
-        const float    step       = 2.f / 256.f;    // constant id 1
-        const uint32_t group_size = 8;              // constant id 2 workgroup 一个方向上的尺寸，正方形
+        const uint32_t dim        = 256;                  // constant id 0 一个方向上粒子的数量，正方形
+        const float    step       = 2.f / (float) dim;    // constant id 1
+        const uint32_t group_size = 8;    // constant id 2 workgroup 一个方向上的尺寸，正方形
     } specialization;
 
 
-    struct Payload
+    struct
     {
-        vk::DescriptorSet descriptor_set;
-        vk::CommandBuffer command_buffer;
-    };
+        const std::filesystem::path                   path    = shader_dir / "compute_particle/surface.comp";
+        const vk::ShaderStageFlagBits                 stage   = vk::ShaderStageFlagBits::eCompute;
+        const std::vector<vk::SpecializationMapEntry> entries = {
+                {0, offsetof(Specialization, dim), sizeof(Specialization::dim)},
+                {1, offsetof(Specialization, step), sizeof(Specialization::step)},
+                {2, offsetof(Specialization, group_size), sizeof(Specialization::group_size)},
+                {3, offsetof(Specialization, group_size), sizeof(Specialization::group_size)},
+        };
+    } shader_info;
 
 
     struct PushConstant
@@ -38,21 +51,43 @@ struct Surface
         float    trans_progress = 0.f;    // 转变进度
     };
 
+
+    std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_bindings = {
+            {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
+    };
+
+
+    std::vector<vk::PushConstantRange> push_constant_ranges = {
+            {vk::ShaderStageFlagBits::eCompute, 0, sizeof(PushConstant)},
+    };
+
+
+    vk::PipelineLayout      pipeline_layout;
+    vk::Pipeline            pipeline;
+    vk::DescriptorSetLayout descriptor_set_layout;
+
+
+#pragma endregion
+
+
+    struct Payload
+    {
+        vk::DescriptorSet descriptor_set;
+        vk::CommandBuffer command_buffer;
+    };
+
+
     const uint32_t KERNEL_NUM                = 10;    // compute shader 中 kernel 的数量
     uint32_t       kernel_id                 = 0;
     const float    MAX_SURFACE_DURATION_TIME = 3.f;    // 一个曲面的持续时间
 
     float surface_duration_time = 0.f;    // 当前曲面持续了多长时间
 
-    const std::filesystem::path shader_file = shader_dir / "compute_particle/surface.comp";
 
     Hiss::Buffer2* storage_buffer = nullptr;
 
     std::vector<Payload> payloads;
 
-    vk::PipelineLayout      pipeline_layout;
-    vk::Pipeline            pipeline;
-    vk::DescriptorSetLayout descriptor_set_layout;
 
     Hiss::Engine& engine;
 
@@ -65,10 +100,9 @@ public:
 
     void prepare()
     {
-        create_storage_buffer();
-        create_descriptor_set_layout();
-        create_pipeline_layout();
         create_pipeline();
+
+        create_storage_buffer();
 
         // 初始化 payload
         payloads.resize(engine.frame_manager().frames_number());
@@ -141,6 +175,44 @@ private:
     }
 
 
+    void create_pipeline()
+    {
+        // descriptor set layout
+        descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
+                .bindingCount = (uint32_t) descriptor_set_bindings.size(),
+                .pBindings    = descriptor_set_bindings.data(),
+        });
+
+
+        // pipeline layout
+        pipeline_layout = engine.vkdevice().createPipelineLayout((vk::PipelineLayoutCreateInfo{
+                .setLayoutCount         = 1,
+                .pSetLayouts            = &descriptor_set_layout,
+                .pushConstantRangeCount = (uint32_t) push_constant_ranges.size(),
+                .pPushConstantRanges    = push_constant_ranges.data(),
+        }));
+
+
+        // shader
+        auto shader       = engine.shader_loader().load(shader_info.path, shader_info.stage);
+        auto special_info = vk::SpecializationInfo{
+                .mapEntryCount = (uint32_t) shader_info.entries.size(),
+                .pMapEntries   = shader_info.entries.data(),
+                .dataSize      = sizeof(specialization),
+                .pData         = &specialization,
+        };
+        shader.pSpecializationInfo = &special_info;
+
+
+        // pipeline
+        vk::Result result;
+        std::tie(result, pipeline) = engine.vkdevice().createComputePipeline(nullptr, vk::ComputePipelineCreateInfo{
+                                                                                              .stage  = shader,
+                                                                                              .layout = pipeline_layout,
+                                                                                      });
+        vk::resultCheck(result, "compute pipeline create.");
+    }
+
     // 录制命令
     void record_command(Payload& payload)
     {
@@ -165,7 +237,7 @@ private:
             if (surface_duration_time > MAX_SURFACE_DURATION_TIME)
             {
                 surface_duration_time = 0.f;
-                kernel_id = (kernel_id + 1) % KERNEL_NUM;
+                kernel_id             = (kernel_id + 1) % KERNEL_NUM;
             }
             data.kernel_id = kernel_id;
             surface_duration_time += (float) engine.timer().duration_ms() / 1000.f;
@@ -176,77 +248,6 @@ private:
 
 
         command_buffer.end();
-    }
-
-
-    void create_descriptor_set_layout()
-    {
-        vk::DescriptorSetLayoutBinding binding = {
-                0,
-                vk::DescriptorType::eStorageBuffer,
-                1,
-                vk::ShaderStageFlagBits::eCompute,
-        };
-        descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout({.bindingCount = 1, .pBindings = &binding});
-    }
-
-
-    void create_pipeline_layout()
-    {
-        assert(descriptor_set_layout);
-
-
-        // push constant
-        vk::PushConstantRange push_constant = {
-                .stageFlags = vk::ShaderStageFlagBits::eCompute,
-                .offset     = 0,
-                .size       = sizeof(PushConstant),
-        };
-
-        // pipeline layout
-        pipeline_layout = engine.vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
-                .setLayoutCount         = 1,
-                .pSetLayouts            = &descriptor_set_layout,
-                .pushConstantRangeCount = 1,
-                .pPushConstantRanges    = &push_constant,
-        });
-    }
-
-
-    void create_pipeline()
-    {
-        assert(pipeline_layout);
-
-
-        // specialization const
-        auto entries      = std::vector<vk::SpecializationMapEntry>{{
-                {0, offsetof(Specialization, dim), sizeof(Specialization::dim)},
-                {1, offsetof(Specialization, step), sizeof(Specialization::step)},
-                {2, offsetof(Specialization, group_size), sizeof(Specialization::group_size)},
-                {3, offsetof(Specialization, group_size), sizeof(Specialization::group_size)},
-        }};
-        auto special_info = vk::SpecializationInfo{
-                static_cast<uint32_t>(entries.size()),
-                entries.data(),
-                sizeof(specialization),
-                &specialization,
-        };
-
-
-        // shader
-        auto shader_stage = engine.shader_loader().load(shader_file, vk::ShaderStageFlagBits::eCompute);
-
-        shader_stage.pSpecializationInfo = &special_info;
-
-
-        // pipeline
-        vk::ComputePipelineCreateInfo pipeline_info = {
-                .stage  = shader_stage,
-                .layout = pipeline_layout,
-        };
-        vk::Result result;
-        std::tie(result, pipeline) = engine.vkdevice().createComputePipeline(VK_NULL_HANDLE, pipeline_info);
-        vk::resultCheck(result, "compute pipeline create");
     }
 
 

@@ -74,12 +74,11 @@ public:
     };
 
 
-private:
     vk::Viewport _viewport = {.x = 0.f, .y = 0.f, .minDepth = 0.f, .maxDepth = 1.f};
     vk::Rect2D   _scissor  = {.offset = {0, 0}};
 
 
-    const vk::PipelineRasterizationStateCreateInfo _rasterization_state = {
+    vk::PipelineRasterizationStateCreateInfo _rasterization_state = {
             /* 超出深度范围的深度是被 clamp 还是被丢弃，需要 GPU feature */
             .depthClampEnable        = VK_FALSE,
             .rasterizerDiscardEnable = VK_FALSE,

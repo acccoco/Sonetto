@@ -2,8 +2,10 @@
 #define PI 3.14159265358979323846
 struct Particle
 {
-    vec4 pos;
-    vec4 vel;   // w 分量表示颜色纹理的采样坐标，范围 [0, 1]
+    vec3 pos;
+    float point_size;
+    vec3 vel;
+    float color_uv;
 };
 
 
@@ -13,7 +15,7 @@ layout (push_constant) uniform _ {
     float trans_progress;
 };
 
-layout (constant_id = 0) const uint DIM = 64;   // 每个方向上各有多少个粒子
+layout (constant_id = 0) const uint DIM = 64;// 每个方向上各有多少个粒子
 layout (constant_id = 1) const float STEP = 0.1f;
 
 
@@ -37,11 +39,12 @@ void set_position(uvec3 global_id, vec3 position) {
     if (global_id.x >= DIM || global_id.y >= DIM) return;
 
     // w 分量表示尺寸
-    particles[global_id.x + global_id.y * DIM].pos = vec4(position, 3.0);
+    particles[global_id.x + global_id.y * DIM].pos = position;
+    particles[global_id.x + global_id.y * DIM].point_size = 3.0;
 }
 
 
-#pragma region 不同的曲面函数
+    #pragma region 不同的曲面函数
 // 正弦波的曲面方程
 vec3 Wave(float u, float v)
 {
@@ -99,14 +102,14 @@ vec3 Torus(float u, float v)
 }
 
 
-// 各种转变的函数
-#define KERNEL_MORPH_FUNCTION(func1, func2) \
+    // 各种转变的函数
+    #define KERNEL_MORPH_FUNCTION(func1, func2) \
 vec3 func1##To##func2(float u, float v) \
-{   \
-    return mix(func1(u, v), func2(u, v), trans_progress);   \
-}
+{ \
+ return mix(func1(u, v), func2(u, v), trans_progress);   \
+ }
 
-KERNEL_MORPH_FUNCTION(Wave, MultiWave)
+    KERNEL_MORPH_FUNCTION(Wave, MultiWave)
 KERNEL_MORPH_FUNCTION(Wave, Ripple)
 KERNEL_MORPH_FUNCTION(Wave, Sphere)
 KERNEL_MORPH_FUNCTION(Wave, Torus)
@@ -136,28 +139,28 @@ KERNEL_MORPH_FUNCTION(Torus, Sphere)
 
 
 void main() {
-vec2 uv = get_uv(gl_GlobalInvocationID);
-vec3 position;
-switch (kernel_id)
-{
-case 0: position = Wave(uv.x, uv.y); break;
-case 1: position = WaveToMultiWave(uv.x, uv.y); break;
+    vec2 uv = get_uv(gl_GlobalInvocationID);
+    vec3 position;
+    switch (kernel_id)
+    {
+        case 0: position = Wave(uv.x, uv.y); break;
+        case 1: position = WaveToMultiWave(uv.x, uv.y); break;
 
-case 2: position = MultiWave(uv.x, uv.y); break;
-case 3: position = MultiWaveToSphere(uv.x, uv.y); break;
+        case 2: position = MultiWave(uv.x, uv.y); break;
+        case 3: position = MultiWaveToSphere(uv.x, uv.y); break;
 
-case 4: position = Sphere(uv.x, uv.y); break;
-case 5: position = SphereToRipple(uv.x, uv.y); break;
+        case 4: position = Sphere(uv.x, uv.y); break;
+        case 5: position = SphereToRipple(uv.x, uv.y); break;
 
-case 6: position = Ripple(uv.x, uv.y); break;
-case 7: position = RippleToTorus(uv.x, uv.y); break;
+        case 6: position = Ripple(uv.x, uv.y); break;
+        case 7: position = RippleToTorus(uv.x, uv.y); break;
 
-case 8: position = Torus(uv.x, uv.y); break;
-case 9: position = TorusToWave(uv.x, uv.y); break;
-}
+        case 8: position = Torus(uv.x, uv.y); break;
+        case 9: position = TorusToWave(uv.x, uv.y); break;
+    }
 
 
-set_position(gl_GlobalInvocationID, position);
+    set_position(gl_GlobalInvocationID, position);
 
 
 }

@@ -103,6 +103,8 @@ private:
             vk::ShaderStageFlagBits::eFragment,
     }}};
 
+    vk::Viewport viewport{.minDepth = 0.f, .maxDepth = 1.f};
+
 #pragma endregion
 };
 }    // namespace Hello

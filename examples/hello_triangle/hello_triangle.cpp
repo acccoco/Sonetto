@@ -11,9 +11,9 @@ void Hello::App::prepare()
     spdlog::info("[app] prepare");
 
 
+    create_pipeline();
     create_uniform_buffer();
     init_descriptor_set();
-    create_pipeline();
 
     // 顶点数据
     _index_buffer  = new Hiss::IndexBuffer2(engine.device(), engine.allocator, indices);
@@ -36,28 +36,31 @@ void Hello::App::prepare()
 
 void Hello::App::create_pipeline()
 {
-    // 着色器
-    _pipeline_template.shader_stages.push_back(
-            engine.shader_loader().load(shader_vert_path2, vk::ShaderStageFlagBits::eVertex));
-    _pipeline_template.shader_stages.push_back(
-            engine.shader_loader().load(shader_frag_path2, vk::ShaderStageFlagBits::eFragment));
+    // 创建 descriptor set layout
+    _descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
+            .bindingCount = (uint32_t) descriptor_bindings.size(),
+            .pBindings    = descriptor_bindings.data(),
+    });
 
-    // 顶点属性
-    _pipeline_template.vertex_bindings   = Hiss::Vertex2DColor::get_binding_description(0);
-    _pipeline_template.vertex_attributes = Hiss::Vertex2DColor::get_attribute_description(0);
 
-    _pipeline_template.set_viewport(engine.extent());
-
-    // pipeline layout
-    assert(_descriptor_set_layout);
-    _pipeline_template.pipeline_layout = _pipeline_layout = engine.vkdevice().createPipelineLayout({
+    // pipelien layout
+    _pipeline_layout = engine.vkdevice().createPipelineLayout({
             .setLayoutCount = 1,
             .pSetLayouts    = &_descriptor_set_layout,
     });
 
-    // framebuffer 相关
-    _pipeline_template.depth_attach_format  = engine.device().gpu().depth_stencil_format();
-    _pipeline_template.color_attach_formats = {engine.color_format()};
+
+    _pipeline_template = Hiss::PipelineTemplate{
+            .shader_stages        = {engine.shader_loader().load(shader_vert_path2, vk::ShaderStageFlagBits::eVertex),
+                                     engine.shader_loader().load(shader_frag_path2, vk::ShaderStageFlagBits::eFragment)},
+            .vertex_bindings      = Hiss::Vertex2DColor::get_binding_description(0),
+            .vertex_attributes    = Hiss::Vertex2DColor::get_attribute_description(0),
+            .color_attach_formats = {engine.color_format()},
+            .depth_attach_format  = engine.depth_format(),
+            .pipeline_layout      = _pipeline_layout,
+            .dynamic_states       = {vk::DynamicState::eViewport, vk::DynamicState::eScissor},
+    };
+
 
     _pipeline = _pipeline_template.generate(engine.device());
 }
@@ -109,6 +112,9 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
     command_buffer.bindVertexBuffers(0, {_vertex_buffer->vkbuffer()}, {0});
     command_buffer.bindIndexBuffer(_index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+    command_buffer.setViewport(
+            0, viewport.setWidth((float) engine.extent().width).setHeight((float) engine.extent().height));
+    command_buffer.setScissor(0, vk::Rect2D{.extent = engine.extent()});
     command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0, {_descriptor_set}, {});
     command_buffer.drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
@@ -147,11 +153,6 @@ void Hello::App::update() noexcept
 
 void Hello::App::resize()
 {
-    // pipeline
-    engine.device().vkdevice().destroy(_pipeline);
-    _pipeline_template.set_viewport(engine.extent());
-    _pipeline = _pipeline_template.generate(engine.device());
-
     // depth attachmetn
     delete _depth_image;
     _depth_image = engine.create_depth_image();
@@ -182,12 +183,6 @@ void Hello::App::clean()
 
 void Hello::App::init_descriptor_set()
 {
-    // 创建 descriptor set layout
-    _descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
-            .bindingCount = static_cast<uint32_t>(descriptor_bindings.size()),
-            .pBindings    = descriptor_bindings.data(),
-    });
-
     // 创建 descriptor set
     _descriptor_set = engine.vkdevice()
                               .allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
