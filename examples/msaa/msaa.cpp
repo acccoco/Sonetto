@@ -17,7 +17,7 @@ void MSAA::App::prepare()
 
     /* assets */
     _mesh    = new Hiss::Mesh(*_device, model_path);
-    _texture = new Hiss::Texture(*_device, nullptr, texture_path, true);
+    _texture = new Hiss::Texture(*_device, nullptr, texture_path, true, vk::Format::eR16G16B16A16Uint);
 
 
     /* 组件 */

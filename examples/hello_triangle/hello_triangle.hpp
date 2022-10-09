@@ -48,6 +48,8 @@ public:
 #pragma region 准备数据的方法
 private:
     void create_pipeline();
+
+
     void record_command(vk::CommandBuffer command_buffer, const FramePayload& payload, const Hiss::Frame& frame);
 
     // 初始化 descriptor set layout ，创建descriptor set，将 descriptor set 与 uniform buffer 绑定起来
@@ -91,8 +93,8 @@ private:
     // 模型的顶点索引
     std::vector<uint32_t> indices = {0, 1, 2};
 
-    const std::filesystem::path shader_vert_path2 = shader_dir / "hello_triangle/hello_triangle.vert";
-    const std::filesystem::path shader_frag_path2 = shader_dir / "hello_triangle/hello_triangle.frag";
+    const std::filesystem::path shader_vert_path2 = shader / "hello_triangle/hello_triangle.vert";
+    const std::filesystem::path shader_frag_path2 = shader / "hello_triangle/hello_triangle.frag";
 
 
     // descriptor set 的布局详情

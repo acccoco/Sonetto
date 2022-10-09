@@ -151,3 +151,29 @@ void Hiss::Engine::create_descriptor_pool()
     for (auto& item: pool_size)
         spdlog::info("[descriptor pool] max number: ({}, {})", to_string(item.type), item.descriptorCount);
 }
+
+
+void Hiss::Engine::depth_buffer_execution_barrier(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+{
+    image.execution_barrier(
+            command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
+            {vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::AccessFlagBits::eDepthStencilAttachmentWrite});
+}
+
+
+void Hiss::Engine::swapchian_image_layout_trans_1(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+{
+    image.transfer_layout(
+            command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, vk::AccessFlags()},
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            vk::ImageLayout::eColorAttachmentOptimal, true);
+}
+
+
+void Hiss::Engine::swapchian_image_layout_trans_2(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+{
+    image.transfer_layout(
+            command_buffer,
+            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+            {vk::PipelineStageFlagBits::eBottomOfPipe, {}}, vk::ImageLayout::ePresentSrcKHR);
+}

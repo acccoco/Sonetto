@@ -57,6 +57,8 @@ public:
     // 访问某个 image view
     View view(uint32_t base_mip = 0, uint32_t mip_count = 1);
 
+    vk::ImageView vkview(uint32_t base_mip = 0, uint32_t mip_count = 1) { return view(base_mip, mip_count).vkview; }
+
 #pragma endregion
 
 

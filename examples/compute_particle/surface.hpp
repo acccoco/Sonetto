@@ -33,7 +33,7 @@ struct Surface
 
     struct
     {
-        const std::filesystem::path                   path    = shader_dir / "compute_particle/surface.comp";
+        const std::filesystem::path                   path    = shader / "compute_particle/surface.comp";
         const vk::ShaderStageFlagBits                 stage   = vk::ShaderStageFlagBits::eCompute;
         const std::vector<vk::SpecializationMapEntry> entries = {
                 {0, offsetof(Specialization, dim), sizeof(Specialization::dim)},

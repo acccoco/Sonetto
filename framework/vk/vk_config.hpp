@@ -104,10 +104,10 @@ inline std::vector<const char*> get_device_extensions()
 // 应用所需的 device features
 inline vk::PhysicalDeviceFeatures get_device_features()
 {
-
     return vk::PhysicalDeviceFeatures{
             .tessellationShader = VK_TRUE,
             .sampleRateShading  = VK_TRUE,
+            .fillModeNonSolid   = VK_TRUE,
             .samplerAnisotropy  = VK_TRUE,
     };
 }

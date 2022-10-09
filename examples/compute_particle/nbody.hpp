@@ -43,8 +43,8 @@ public:
     uint32_t workgroup_num    = {};
     uint32_t shared_data_size = {};    // 单位是 sizeof(glm::vec4)
 
-    const std::filesystem::path shader_file_calculate = shader_dir / "compute_particle/calculate.comp";
-    const std::filesystem::path shader_file_integrate = shader_dir / "compute_particle/integrate.comp";
+    const std::filesystem::path shader_file_calculate = shader / "compute_particle/calculate.comp";
+    const std::filesystem::path shader_file_integrate = shader / "compute_particle/integrate.comp";
 
     struct Payload
     {

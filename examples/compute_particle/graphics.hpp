@@ -32,8 +32,8 @@ struct Graphics
             {1, 0, vk::Format::eR32G32B32A32Sfloat, offsetof(Particle, vel)},
     };
 
-    const std::filesystem::path vert_shader_path  = shader_dir / "compute_particle/particle.vert";
-    const std::filesystem::path frag_shader_path  = shader_dir / "compute_particle/particle.frag";
+    const std::filesystem::path vert_shader_path  = shader / "compute_particle/particle.vert";
+    const std::filesystem::path frag_shader_path  = shader / "compute_particle/particle.frag";
     const std::filesystem::path tex_particle_path = texture / "compute_particle/particle_rgba.png";
     const std::filesystem::path tex_gradient_path = texture / "compute_particle/particle_gradient_rgba.png";
 
@@ -168,8 +168,10 @@ private:
     // 读取纹理资源
     void load_assets()
     {
-        tex_particle = new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path, false);
-        tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path, false);
+        tex_particle = new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path, false,
+                                         vk::Format::eR8G8B8A8Srgb);
+        tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path, false,
+                                         vk::Format::eR8G8B8A8Srgb);
     }
 
 

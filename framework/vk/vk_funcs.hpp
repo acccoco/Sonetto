@@ -12,4 +12,6 @@ inline vk::DescriptorSetLayout create_descriptor_set_layout(const vk::Device&   
             .pBindings    = bindings.data(),
     });
 }
+
+
 }    // namespace Hiss

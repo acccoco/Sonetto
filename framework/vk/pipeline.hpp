@@ -74,6 +74,10 @@ public:
     };
 
 
+    vk::PipelineTessellationStateCreateInfo tessellation_state = {
+            .patchControlPoints = 3,
+    };
+
     vk::Viewport _viewport = {.x = 0.f, .y = 0.f, .minDepth = 0.f, .maxDepth = 1.f};
     vk::Rect2D   _scissor  = {.offset = {0, 0}};
 

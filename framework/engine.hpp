@@ -41,6 +41,14 @@ public:
     // 创建符合 swapchain 大小的 image，需要应用自己管理内存
     [[nodiscard]] Image2D* create_depth_image() const;
 
+    static void depth_buffer_execution_barrier(vk::CommandBuffer command_buffer, Image2D& image);
+
+    // layout 转换为 colorAttachment，不保留之前的数据
+    static void swapchian_image_layout_trans_1(vk::CommandBuffer command_buffer, Image2D& image);
+
+    // layout 转换为 present，保留之前的数据，最后一个 stage 是 color attachment
+    static void swapchian_image_layout_trans_2(vk::CommandBuffer command_buffer, Image2D& image);
+
 #pragma endregion
 
 

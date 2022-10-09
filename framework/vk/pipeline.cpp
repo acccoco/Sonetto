@@ -30,6 +30,7 @@ vk::Pipeline Hiss::PipelineTemplate::generate(const Device& device)
     };
 
     vk::GraphicsPipelineCreateInfo pipeline_info = {
+            // dynamic rendering
             .pNext = &attach_info,
 
             /* shader stages */
@@ -39,6 +40,9 @@ vk::Pipeline Hiss::PipelineTemplate::generate(const Device& device)
             /* vertex */
             .pVertexInputState   = &vertex_input_state,
             .pInputAssemblyState = &assembly_state,
+
+            // tessellation：只有明确启用了 tse 着色器时，tessellation 的设置才会生效
+            .pTessellationState = &tessellation_state,
 
             /* pipeline 的固定功能 */
             .pViewportState      = &viewport_state,
@@ -55,7 +59,6 @@ vk::Pipeline Hiss::PipelineTemplate::generate(const Device& device)
     };
 
     auto [result, pipeline] = device.vkdevice().createGraphicsPipeline(VK_NULL_HANDLE, pipeline_info);
-    if (result != vk::Result::eSuccess)
-        throw std::runtime_error("fail to create pipeline: " + vk::to_string(result));
+    vk::resultCheck(result, fmt::format("fail to create pipeline: {}", vk::to_string(result)).c_str());
     return pipeline;
 }

@@ -4,17 +4,17 @@
 #include "utils/tools.hpp"
 
 
-Hiss::Texture::Texture(Device& device, VmaAllocator allocator, std::string tex_path, bool mipmap)
+Hiss::Texture::Texture(Device& device, VmaAllocator allocator, std::string tex_path, bool mipmap, vk::Format format)
     : path(std::move(tex_path)),
       _device(device),
       _allocator(allocator)
 {
-    image_create(mipmap);
+    image_create(mipmap, format);
     sampler_create();
 }
 
 
-void Hiss::Texture::image_create(bool mipmap)
+void Hiss::Texture::image_create(bool mipmap, vk::Format format)
 {
     // 从 image 文件中读取数据
     Hiss::Stbi_8Bit_RAII tex_data(path._value, STBI_rgb_alpha);
@@ -34,7 +34,7 @@ void Hiss::Texture::image_create(bool mipmap)
     // 创建空的 iamge
     _image = new Image2D(_allocator, _device,
                          Image2D::Info{
-                                 .format     = vk::Format::eR8G8B8A8Srgb,
+                                 .format     = format,
                                  .extent     = {(uint32_t) tex_data.width(), (uint32_t) tex_data.height()},
                                  .mip_levels = 1,
                                  .usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst

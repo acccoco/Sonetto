@@ -13,12 +13,12 @@ public:
     /**
      * 会将所有 level 都设为 readonly layout
      */
-    Texture(Device& device, VmaAllocator allocator, std::string tex_path, bool mipmap);
+    Texture(Device& device, VmaAllocator allocator, std::string tex_path, bool mipmap, vk::Format format);
     ~Texture();
 
 
 private:
-    void image_create(bool mipmap);
+    void image_create(bool mipmap, vk::Format format);
     void sampler_create();
 
     // members =======================================================
