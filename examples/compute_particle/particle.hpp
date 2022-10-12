@@ -1,5 +1,5 @@
 #pragma once
-#include "vk/vk_common.hpp"
+#include "core/vk_common.hpp"
 
 
 namespace ParticleCompute

@@ -1,10 +1,12 @@
-#include "engine.hpp"
+#include "core/engine.hpp"
 #include "application.hpp"
 #include "utils/tools.hpp"
 #include "proj_config.hpp"
-#include "vk/vertex.hpp"
-#include "vk/pipeline.hpp"
-#include "vk/texture.hpp"
+#include "func/vertex.hpp"
+#include "func/pipeline_template.hpp"
+#include "func/texture.hpp"
+#include "func/vertex_buffer.hpp"
+#include "utils/stbi.hpp"
 #include "run.hpp"
 
 
@@ -322,7 +324,7 @@ public:
     {
         // 读取纹理
         tex_height =
-                new Hiss::Texture(engine.device(), engine.allocator, height_map, false, vk::Format::eR8G8B8A8Unorm);
+                new Hiss::Texture(engine.device(), engine.allocator, height_map, vk::Format::eR8G8B8A8Unorm, false);
 
 
         // 设置初始的 ubo

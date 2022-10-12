@@ -1,6 +1,6 @@
 #pragma once
-#include "vk/vk_common.hpp"
-#include "vk/device.hpp"
+#include "core/vk_common.hpp"
+#include "core/device.hpp"
 
 
 namespace Hiss

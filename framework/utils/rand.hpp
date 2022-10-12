@@ -4,6 +4,8 @@
 
 namespace Hiss
 {
+
+// 对 cpp 随机数生成器的简单包装
 class Rand
 {
 public:

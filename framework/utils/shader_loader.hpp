@@ -2,12 +2,14 @@
 #include <filesystem>
 
 #include "utils/tools.hpp"
-#include "vk/vk_common.hpp"
-#include "vk/device.hpp"
+#include "core/vk_common.hpp"
+#include "core/device.hpp"
 
 
 namespace Hiss
 {
+
+// 读取 shader 的 spv 文件，创建 stage，在析构时销毁 shader stage 资源
 class ShaderLoader
 {
 public:

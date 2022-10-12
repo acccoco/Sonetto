@@ -7,6 +7,8 @@
 namespace Hiss
 {
 
+
+// stopwatch 计时器
 class Timer
 {
 public:

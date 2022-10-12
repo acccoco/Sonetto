@@ -1,6 +1,6 @@
 #include "hello_triangle.hpp"
 #include "run.hpp"
-#include "vk/vk_common.hpp"
+#include "core/vk_common.hpp"
 
 
 RUN(Hello::App)

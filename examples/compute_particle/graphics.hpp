@@ -1,10 +1,10 @@
 #pragma once
-#include "engine.hpp"
+#include "core/engine.hpp"
 #include "proj_config.hpp"
-#include "vk/texture.hpp"
-#include "vk/pipeline.hpp"
+#include "func/texture.hpp"
+#include "func/pipeline_template.hpp"
 #include "application.hpp"
-#include "vk/vk_config.hpp"
+#include "vk_config.hpp"
 
 #include "./particle.hpp"
 
@@ -168,10 +168,10 @@ private:
     // 读取纹理资源
     void load_assets()
     {
-        tex_particle = new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path, false,
-                                         vk::Format::eR8G8B8A8Srgb);
-        tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path, false,
-                                         vk::Format::eR8G8B8A8Srgb);
+        tex_particle = new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path,
+                                         vk::Format::eR8G8B8A8Srgb, false);
+        tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path,
+                                         vk::Format::eR8G8B8A8Srgb, false);
     }
 
 

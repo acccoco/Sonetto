@@ -30,40 +30,56 @@ set(LIBS
 
 
 set(HEADER_FILES
-        vk/buffer.hpp
-        vk/framebuffer.hpp
-        vk/image.hpp
-        vk/model.hpp
-        vk/swapchain.hpp
-        vk/texture.hpp
+        vk_config.hpp
+        run.hpp
+        application.hpp
+
         utils/tools.hpp
-        vk/vertex.hpp
-        vk/vk_common.hpp
-        vk/instance.hpp
-        window.hpp
-        vk/device.hpp
-        vk/gpu.hpp
-        engine.hpp
-        vk/pipeline.hpp
-        vk/command.hpp utils/timer.hpp utils/rand.hpp utils/shader_loader.hpp frame.hpp utils/semaphore_pool.hpp vk/vk_config.hpp run.hpp vk/queue.hpp application.hpp vk/vk_funcs.hpp vk/vk_include.hpp)
+        utils/timer.hpp
+        utils/rand.hpp
+        utils/shader_loader.hpp
+        utils/semaphore_pool.hpp
+        utils/stbi.hpp
+
+        core/image.hpp
+        core/swapchain.hpp
+        core/vk_common.hpp
+        core/instance.hpp
+        core/window.hpp
+        core/device.hpp
+        core/gpu.hpp
+        core/engine.hpp
+        core/command.hpp
+        core/frame.hpp
+        core/queue.hpp
+        core/vk_include.hpp
+
+        func/buffer.hpp
+        func/model.hpp
+        func/texture.hpp
+        func/vertex.hpp
+        func/pipeline_template.hpp
+        func/vertex_buffer.hpp
+        )
 
 # source files
 set(SOURCE_FILES
-        vk/buffer.cpp
-        vk/image.cpp
-        vk/framebuffer.cpp
-        vk/vertex.cpp
-        vk/texture.cpp
-        vk/instance.cpp
-        window.cpp
-        vk/device.cpp
-        vk/vk_common.cpp
-        vk/gpu.cpp
-        vk/swapchain.cpp
-        engine.cpp
-        vk/pipeline.cpp
-        vk/command.cpp
-        vk/fence_pool.cpp utils/tools.cpp vk/model.cpp)
+        utils/fence_pool.cpp
+
+        core/image.cpp
+        core/instance.cpp
+        core/window.cpp
+        core/device.cpp
+        core/gpu.cpp
+        core/swapchain.cpp
+        core/engine.cpp
+        core/command.cpp
+
+        func/vertex.cpp
+        func/texture.cpp
+        func/pipeline_template.cpp
+        func/model.cpp
+        )
 
 
 # static library

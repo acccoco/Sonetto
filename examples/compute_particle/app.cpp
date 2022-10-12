@@ -1,9 +1,9 @@
-#include "engine.hpp"
+#include "core/engine.hpp"
 #include "proj_config.hpp"
-#include "vk/texture.hpp"
-#include "vk/pipeline.hpp"
+#include "func/texture.hpp"
+#include "func/pipeline_template.hpp"
 #include "application.hpp"
-#include "vk/vk_config.hpp"
+#include "vk_config.hpp"
 #include "utils/rand.hpp"
 #include "run.hpp"
 

@@ -5,7 +5,6 @@
 #pragma once
 #include <string>
 #include <filesystem>
-
 #include <spdlog/spdlog.h>
 
 
@@ -23,27 +22,7 @@ const struct
 
 
 // 项目的文件夹配置
-const std::filesystem::path assets("${PROJ_ASSETS_DIR}");
-const std::filesystem::path shader("${PROJ_SHADER_DIR}");
+const std::filesystem::path assets  = "${PROJ_ASSETS_DIR}";
+const std::filesystem::path shader  = "${PROJ_SHADER_DIR}";
 const std::filesystem::path texture = assets / "textures";
-
-
-inline std::string ASSETS(const std::string& obj)
-{
-    return "${PROJ_ASSETS_DIR}/" + obj;
-}
-
-inline std::string TEXTURE(const std::string& tex)
-{
-    return "${PROJ_ASSETS_DIR}/textures/" + tex;
-}
-
-inline std::string MODEL(const std::string& model)
-{
-    return "${PROJ_ASSETS_DIR}/model/" + model;
-}
-
-inline std::string SHADER(const std::string& shader)
-{
-    return "${PROJ_SHADER_DIR}/" + shader;
-}
+const std::filesystem::path model   = assets / "model";
