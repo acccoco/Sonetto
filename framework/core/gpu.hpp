@@ -14,7 +14,7 @@ public:
 #pragma region 工具方法
 public:
     /// format 是否支持 linear filter
-    [[nodiscard]] bool is_support_linear_filter(vk::Format format) const;
+    bool is_support_linear_filter(vk::Format format) const;
 #pragma endregion
 
 
@@ -25,11 +25,11 @@ private:
 
 
     /// gpu 支持的最大 MSAA 采样数
-    [[nodiscard]] vk::SampleCountFlagBits max_sample_cnt() const;
+    vk::SampleCountFlagBits max_sample_cnt() const;
 
 
     /// 根据 tiling 和 features，在 candidate 中找到合适的 format
-    [[nodiscard]] std::optional<vk::Format> filter_format(const std::vector<vk::Format>& candidates,
+    std::optional<vk::Format> filter_format(const std::vector<vk::Format>& candidates,
                                                           vk::ImageTiling                tiling,
                                                           vk::FormatFeatureFlags         features_) const;
 #pragma endregion

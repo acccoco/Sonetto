@@ -22,4 +22,11 @@ struct StageSemaphore
 };
 
 
+inline glm::mat4 perspective(float fov_deg, float aspect, float near, float far)
+{
+    auto mat = glm::perspectiveRH_ZO(glm::radians(fov_deg), aspect, near, far);
+    mat[1][1] *= -1;
+    return mat;
+}
+
 }    // namespace Hiss

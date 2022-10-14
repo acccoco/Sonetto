@@ -125,13 +125,14 @@ void Hiss::Engine::postupdate() noexcept
 }
 
 
-Hiss::Image2D* Hiss::Engine::create_depth_image() const
+Hiss::Image2D* Hiss::Engine::create_depth_attach(vk::SampleCountFlagBits sample) const
 {
     return new Hiss::Image2D(allocator, *_device,
                              Hiss::Image2D::Info{
                                      .format       = depth_format(),
                                      .extent       = extent(),
                                      .usage        = vk::ImageUsageFlagBits::eDepthStencilAttachment,
+                                     .samples      = sample,
                                      .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                      .aspect       = vk::ImageAspectFlagBits::eDepth,
                                      .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
@@ -153,7 +154,7 @@ void Hiss::Engine::create_descriptor_pool()
 }
 
 
-void Hiss::Engine::depth_buffer_execution_barrier(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+void Hiss::Engine::depth_attach_execution_barrier(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
 {
     image.execution_barrier(
             command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
@@ -161,7 +162,7 @@ void Hiss::Engine::depth_buffer_execution_barrier(vk::CommandBuffer command_buff
 }
 
 
-void Hiss::Engine::swapchian_image_layout_trans_1(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+void Hiss::Engine::color_attach_layout_trans_1(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
 {
     image.transfer_layout(
             command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, vk::AccessFlags()},
@@ -170,10 +171,59 @@ void Hiss::Engine::swapchian_image_layout_trans_1(vk::CommandBuffer command_buff
 }
 
 
-void Hiss::Engine::swapchian_image_layout_trans_2(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
+void Hiss::Engine::color_attach_layout_trans_2(vk::CommandBuffer command_buffer, Hiss::Image2D& image)
 {
     image.transfer_layout(
             command_buffer,
             {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
             {vk::PipelineStageFlagBits::eBottomOfPipe, {}}, vk::ImageLayout::ePresentSrcKHR);
+}
+
+
+Hiss::Image2D* Hiss::Engine::create_color_attach(vk::SampleCountFlagBits sample) const
+{
+    return new Hiss::Image2D(allocator, *_device,
+                             Hiss::Image2D::Info{
+                                     .format       = color_format(),
+                                     .extent       = extent(),
+                                     .usage        = vk::ImageUsageFlagBits::eColorAttachment,
+                                     .samples      = sample,
+                                     .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+                                     .aspect       = vk::ImageAspectFlagBits::eColor,
+                                     .init_layout  = vk::ImageLayout::eColorAttachmentOptimal,
+                             });
+}
+
+
+vk::Viewport Hiss::Engine::viewport() const
+{
+    return vk::Viewport{
+            .x        = 0.f,
+            .y        = 0.f,
+            .width    = (float) this->_swapchain->present_extent().width,
+            .height   = (float) this->_swapchain->present_extent().height,
+            .minDepth = 0.f,
+            .maxDepth = 1.f,
+    };
+}
+
+
+vk::Rect2D Hiss::Engine::scissor() const
+{
+    return vk::Rect2D{
+            .offset = {0, 0},
+            .extent = this->_swapchain->present_extent(),
+    };
+}
+
+
+vk::DescriptorSet Hiss::Engine::create_descriptor_set(vk::DescriptorSetLayout layout)
+{
+    return _device->vkdevice()
+            .allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+                    .descriptorPool     = descriptor_pool._value,
+                    .descriptorSetCount = 1,
+                    .pSetLayouts        = &layout,
+            })
+            .front();
 }

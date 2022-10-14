@@ -1,10 +1,11 @@
 #pragma once
 #include <array>
 #include "core/engine.hpp"
-#include "func/pipeline_template.hpp"
 #include "proj_config.hpp"
 #include "func/model.hpp"
+#include "func/pipeline_template.hpp"
 #include "func/texture.hpp"
+#include "func/vk_func.hpp"
 #include "utils/tools.hpp"
 #include "application.hpp"
 
@@ -59,8 +60,8 @@ private:
     // 创建 descriptor set，与 buffer 绑定起来
     void prepare_descriptor_set();
 
-    void command_record(vk::CommandBuffer command_buffer, const MSAA::Payload& payload, const Hiss::Frame& frame);
-    void uniform_update(Hiss::UniformBuffer& uniform_buffer);
+    void record_command(vk::CommandBuffer command_buffer, const MSAA::Payload& payload, const Hiss::Frame& frame);
+    void update_uniform(Hiss::UniformBuffer& uniform_buffer);
 
 
     // members =======================================================
@@ -79,86 +80,29 @@ public:
 
 
 #pragma region pipeline 相关
-    const std::vector<vk::DescriptorSetLayoutBinding> descriptor_bindings = {
-            vk::DescriptorSetLayoutBinding{
-                    .binding         = 0,
-                    .descriptorType  = vk::DescriptorType::eUniformBuffer,
-                    .descriptorCount = 1,
-                    .stageFlags      = vk::ShaderStageFlagBits::eVertex,
-            },
-            vk::DescriptorSetLayoutBinding{
-                    .binding            = 1,
-                    .descriptorType     = vk::DescriptorType::eCombinedImageSampler,
-                    .descriptorCount    = 1,
-                    .stageFlags         = vk::ShaderStageFlagBits::eFragment,
-                    .pImmutableSamplers = nullptr,
-            }};
 
-    const vk::Viewport viewport = {.width    = (float) engine.extent().width,
-                                   .height   = (float) engine.extent().height,
-                                   .minDepth = 0.f,
-                                   .maxDepth = 1.f};
+    vk::Pipeline       pipeline;
+    vk::PipelineLayout pipeline_layout;
 
-    const vk::Rect2D scissor = {{0, 0}, engine.extent()};
-
-
-    vk::Pipeline            pipeline;
-    vk::PipelineLayout      pipeline_layout;
-    vk::DescriptorSetLayout descriptor_layout;
+    vk::DescriptorSetLayout descriptor_layout = Hiss::Initial::descriptor_set_layout(
+            engine.vkdevice(),
+            {
+                    {vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex},             // 0
+                    {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},    // 1
+            });
 
 #pragma endregion
 
 
 #pragma region framebuffer 相关信息
 
-    Hiss::Image2D color_attach = Hiss::Image2D(engine.allocator, engine.device(),
-                                               Hiss::Image2D::Info{
-                                                       .format       = engine.color_format(),
-                                                       .extent       = engine.extent(),
-                                                       .usage        = vk::ImageUsageFlagBits::eColorAttachment,
-                                                       .samples      = msaa_sample,
-                                                       .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                                                       .aspect       = vk::ImageAspectFlagBits::eColor,
-                                                       .init_layout  = vk::ImageLayout::eColorAttachmentOptimal,
-                                               });
+    Hiss::Image2D* color_attach = engine.create_color_attach(msaa_sample);
+    Hiss::Image2D* depth_attach = engine.create_depth_attach(msaa_sample);
 
-    Hiss::Image2D depth_attach = Hiss::Image2D(engine.allocator, engine.device(),
-                                               Hiss::Image2D::Info{
-                                                       .format       = engine.depth_format(),
-                                                       .extent       = engine.extent(),
-                                                       .usage        = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                                                       .samples      = msaa_sample,
-                                                       .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                                                       .aspect       = vk::ImageAspectFlagBits::eDepth,
-                                                       .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                                               });
+    vk::RenderingAttachmentInfo color_attach_info = Hiss::Initial::color_resolve_attach(color_attach->vkview());
+    vk::RenderingAttachmentInfo depth_attach_info = Hiss::Initial::depth_attach_info(depth_attach->vkview());
 
-
-    vk::RenderingAttachmentInfo color_attach_info = {
-            .imageView          = color_attach.vkview(),
-            .imageLayout        = vk::ImageLayout::eColorAttachmentOptimal,
-            .resolveMode        = vk::ResolveModeFlagBits::eAverage,
-            .resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .loadOp             = vk::AttachmentLoadOp::eClear,
-            .storeOp            = vk::AttachmentStoreOp::eDontCare,
-            .clearValue         = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.f}}},
-    };
-
-    vk::RenderingAttachmentInfo depth_attach_info = {
-            .imageView   = depth_attach.vkview(),
-            .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-            .loadOp      = vk::AttachmentLoadOp::eClear,
-            .storeOp     = vk::AttachmentStoreOp::eDontCare,
-            .clearValue  = vk::ClearValue{.depthStencil = {1.f, 0}},
-    };
-
-    vk::RenderingInfo render_info = {
-            .renderArea           = {.offset = {0, 0}, .extent = engine.extent()},
-            .layerCount           = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments    = &color_attach_info,
-            .pDepthAttachment     = &depth_attach_info,
-    };
+    vk::RenderingInfo render_info = Hiss::Initial::render_info(color_attach_info, depth_attach_info, engine.extent());
 
 #pragma endregion
 };

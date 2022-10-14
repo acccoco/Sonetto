@@ -30,7 +30,7 @@ public:
 
     ~App() override = default;
 
-    const bool USE_SURFACE = true;
+    bool USE_SURFACE = true;
 
 
     Graphics* graphics{};

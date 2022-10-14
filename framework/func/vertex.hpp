@@ -55,8 +55,8 @@ struct Vertex3DColorUv
 
     bool operator==(const Hiss::Vertex3DColorUv& other) const;
 
-    static std::vector<vk::VertexInputBindingDescription>   binding_description_get(uint32_t binding);
-    static std::vector<vk::VertexInputAttributeDescription> attribute_description_get(uint32_t binding);
+    static std::vector<vk::VertexInputBindingDescription>   input_binding_description(uint32_t binding);
+    static std::vector<vk::VertexInputAttributeDescription> input_attribute_description(uint32_t binding);
 };
 
 }    // namespace Hiss

@@ -60,7 +60,7 @@ set(HEADER_FILES
         func/vertex.hpp
         func/pipeline_template.hpp
         func/vertex_buffer.hpp
-        )
+        func/vk_func.hpp)
 
 # source files
 set(SOURCE_FILES

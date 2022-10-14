@@ -70,7 +70,7 @@ public:
 public:
     Prop<uint32_t, Frame> frame_id;
 
-    [[nodiscard]] Hiss::Image2D& image() const { return *_image; }
+    Hiss::Image2D& image() const { return *_image; }
 
     // 后续想要使用 frame 内的 image，需要确保这个 semaphore 是 signaled
     Prop<vk::Semaphore, Frame> submit_semaphore{VK_NULL_HANDLE};
@@ -161,7 +161,7 @@ public:
     Prop<std::vector<Frame*>, FrameManager> frames;
     Prop<uint32_t, FrameManager>            frames_number{0};
 
-    [[nodiscard]] Frame& current_frame() const { return *_current_frame; }
+    Frame& current_frame() const { return *_current_frame; }
 #pragma endregion
 
 

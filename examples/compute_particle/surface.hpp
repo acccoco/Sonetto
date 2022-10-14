@@ -138,7 +138,7 @@ public:
     }
 
 
-    [[nodiscard]] uint32_t num_particles() const { return specialization.dim * specialization.dim; }
+    uint32_t num_particles() const { return specialization.dim * specialization.dim; }
 #pragma endregion
 
 

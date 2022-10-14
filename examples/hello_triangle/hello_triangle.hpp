@@ -5,6 +5,7 @@
 #include "func/pipeline_template.hpp"
 #include "application.hpp"
 #include "func/vertex_buffer.hpp"
+#include "func/vk_func.hpp"
 
 
 namespace Hello
@@ -36,6 +37,17 @@ public:
     ~App() override = default;
 
 
+    // 顶点数据
+    std::vector<Hiss::Vertex2DColor> vertices = {
+            {{-0.5f, -0.5f}, {0.8f, 0.0f, 0.0f}},    //
+            {{0.5f, 0.5f}, {0.0f, 0.5f, 0.0f}},      //
+            {{0.5f, -0.5f}, {0.0f, 0.0f, 0.5f}},     //
+    };
+
+    // 模型的顶点索引
+    std::vector<uint32_t> indices = {0, 1, 2};
+
+
 #pragma region 特殊的接口
 public:
     void prepare() final;
@@ -64,16 +76,21 @@ private:
 
 #pragma region 应用的成员字段
 private:
-    Hiss::PipelineTemplate  _pipeline_template;
-    vk::Pipeline            _pipeline;
-    vk::PipelineLayout      _pipeline_layout;
-    vk::DescriptorSetLayout _descriptor_set_layout;
-    vk::DescriptorSet       _descriptor_set;
+    Hiss::PipelineTemplate _pipeline_template;
+    vk::Pipeline           _pipeline;
 
-    Hiss::IndexBuffer2*                       _index_buffer{};
-    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer{};
+    // descriptor set 的布局详情
+    vk::DescriptorSetLayout _descriptor_set_layout = Hiss::Initial::descriptor_set_layout(
+            engine.vkdevice(), {{vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment}});
 
-    Hiss::Image2D* _depth_image{};
+    vk::PipelineLayout _pipeline_layout;
+    vk::DescriptorSet  _descriptor_set = engine.create_descriptor_set(_descriptor_set_layout);
+
+    Hiss::IndexBuffer2* _index_buffer = new Hiss::IndexBuffer2(engine.device(), engine.allocator, indices);
+    Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer =
+            new Hiss::VertexBuffer2(engine.device(), engine.allocator, vertices);
+
+    Hiss::Image2D* _depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
 
     UniformData          _ubo;
     Hiss::UniformBuffer* _uniform_buffer{};
@@ -84,30 +101,14 @@ private:
 
 #pragma region 应用数据
 private:
-    // 顶点数据
-    std::vector<Hiss::Vertex2DColor> vertices = {
-            {{-0.5f, -0.5f}, {0.8f, 0.0f, 0.0f}},    //
-            {{0.5f, 0.5f}, {0.0f, 0.5f, 0.0f}},      //
-            {{0.5f, -0.5f}, {0.0f, 0.0f, 0.5f}},     //
-    };
-
-    // 模型的顶点索引
-    std::vector<uint32_t> indices = {0, 1, 2};
-
     const std::filesystem::path shader_vert_path2 = shader / "hello_triangle/hello_triangle.vert";
     const std::filesystem::path shader_frag_path2 = shader / "hello_triangle/hello_triangle.frag";
 
 
-    // descriptor set 的布局详情
-    const std::vector<vk::DescriptorSetLayoutBinding> descriptor_bindings = {{{
-            0,
-            vk::DescriptorType::eUniformBuffer,
-            1,
-            vk::ShaderStageFlagBits::eFragment,
-    }}};
+    vk::RenderingAttachmentInfo color_attach_info = Hiss::Initial::color_attach_info();
+    vk::RenderingAttachmentInfo depth_attach_info = Hiss::Initial::depth_attach_info(_depth_image->vkview());
 
-    vk::Viewport viewport{.minDepth = 0.f, .maxDepth = 1.f};
-
+    vk::RenderingInfo render_info = Hiss::Initial::render_info(color_attach_info, depth_attach_info, engine.extent());
 #pragma endregion
 };
 }    // namespace Hello

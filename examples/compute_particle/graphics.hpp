@@ -5,6 +5,7 @@
 #include "func/pipeline_template.hpp"
 #include "application.hpp"
 #include "vk_config.hpp"
+#include "func/vk_func.hpp"
 
 #include "./particle.hpp"
 
@@ -104,7 +105,7 @@ public:
                     engine.device().command_pool().command_buffer_create(fmt::format("graphics[{}]", i));
         }
 
-        depth_image = engine.create_depth_image();
+        depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
 
         load_assets();
         create_uniform_buffer();
@@ -158,7 +159,7 @@ public:
     void resize()
     {
         delete depth_image;
-        depth_image = engine.create_depth_image();
+        depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
     }
 #pragma endregion
 

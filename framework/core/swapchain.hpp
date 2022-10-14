@@ -26,7 +26,7 @@ public:
      * 只有 submit_commands 过的 image 才能够被再度 acquire
      * @param signal_semaphore image 可用后，回通过该 semaphore 通知
      */
-    [[nodiscard]] uint32_t acquire_image(vk::Semaphore signal_semaphore) const;
+    uint32_t acquire_image(vk::Semaphore signal_semaphore) const;
 
 
     /**
@@ -46,10 +46,10 @@ private:
 public:
     // 各种属性 =============================================================
 
-    [[nodiscard]] vk::Format color_format() const { return _present_format.format; }
-    [[nodiscard]] size_t     image_number() const { return _images2.size(); }
+    vk::Format color_format() const { return _present_format.format; }
+    size_t     image_number() const { return _images2.size(); }
 
-    [[nodiscard]] Hiss::Image2D* get_image(uint32_t index) const { return _images2[index]; }
+    Hiss::Image2D* get_image(uint32_t index) const { return _images2[index]; }
 
     // 得到 swapchain 的 extent，单位是 pixel
     Prop<vk::Extent2D, Swapchain> present_extent = {};

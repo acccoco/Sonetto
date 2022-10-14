@@ -2,7 +2,7 @@
 #include "buffer.hpp"
 
 
-std::vector<vk::VertexInputBindingDescription> Hiss::Vertex3DColorUv::binding_description_get(uint32_t binding)
+std::vector<vk::VertexInputBindingDescription> Hiss::Vertex3DColorUv::input_binding_description(uint32_t binding)
 {
     return {
             vk::VertexInputBindingDescription{
@@ -14,7 +14,7 @@ std::vector<vk::VertexInputBindingDescription> Hiss::Vertex3DColorUv::binding_de
 }
 
 
-std::vector<vk::VertexInputAttributeDescription> Hiss::Vertex3DColorUv::attribute_description_get(uint32_t binding)
+std::vector<vk::VertexInputAttributeDescription> Hiss::Vertex3DColorUv::input_attribute_description(uint32_t binding)
 {
     return {
             vk::VertexInputAttributeDescription{

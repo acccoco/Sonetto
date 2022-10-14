@@ -138,7 +138,7 @@ public:
         // 是否以线框模式渲染
         pipelines.current = pipelines.wireframe;
 
-        depth_buffer = engine.create_depth_image();
+        depth_buffer = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
         load_vertex_data();
         create_descriptor_set();
 
@@ -289,8 +289,8 @@ public:
         command_buffer.begin(vk::CommandBufferBeginInfo{});
 
         // 内存屏障与布局转换
-        Hiss::Engine::depth_buffer_execution_barrier(command_buffer, *depth_buffer);
-        Hiss::Engine::swapchian_image_layout_trans_1(command_buffer, frame.image());
+        Hiss::Engine::depth_attach_execution_barrier(command_buffer, *depth_buffer);
+        Hiss::Engine::color_attach_layout_trans_1(command_buffer, frame.image());
 
 
         // framebuffer 相关设置
@@ -313,7 +313,7 @@ public:
         }
         command_buffer.endRendering();
 
-        Hiss::Engine::swapchian_image_layout_trans_2(command_buffer, frame.image());
+        Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
 
         command_buffer.end();
     }

@@ -29,25 +29,30 @@ public:
     void wait_idle() const { device().vkdevice().waitIdle(); }
     void poll_event() { _window->poll_event(); }
 
-    [[nodiscard]] bool should_close() const { return _window->should_close(); }
+    bool should_close() const { return _window->should_close(); }
 
-    [[nodiscard]] bool should_resize() const { return _window->has_resized(); }
+    bool should_resize() const { return _window->has_resized(); }
 
 #pragma endregion
 
 
 #pragma region private 工具方法
+
 public:
     // 创建符合 swapchain 大小的 image，需要应用自己管理内存
-    [[nodiscard]] Image2D* create_depth_image() const;
+    Image2D* create_depth_attach(vk::SampleCountFlagBits sample = vk::SampleCountFlagBits::e1) const;
 
-    static void depth_buffer_execution_barrier(vk::CommandBuffer command_buffer, Image2D& image);
+    Image2D* create_color_attach(vk::SampleCountFlagBits sample = vk::SampleCountFlagBits::e1) const;
+
+    static void depth_attach_execution_barrier(vk::CommandBuffer command_buffer, Image2D& image);
 
     // layout 转换为 colorAttachment，不保留之前的数据
-    static void swapchian_image_layout_trans_1(vk::CommandBuffer command_buffer, Image2D& image);
+    static void color_attach_layout_trans_1(vk::CommandBuffer command_buffer, Image2D& image);
 
     // layout 转换为 present，保留之前的数据，最后一个 stage 是 color attachment
-    static void swapchian_image_layout_trans_2(vk::CommandBuffer command_buffer, Image2D& image);
+    static void color_attach_layout_trans_2(vk::CommandBuffer command_buffer, Image2D& image);
+
+    vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout);
 
 #pragma endregion
 
@@ -67,21 +72,23 @@ public:
     Prop<Timer, Engine>       timer{};
 
 
-    [[nodiscard]] vk::Device vkdevice() const { return this->device().vkdevice(); }
-    [[nodiscard]] Device&    device() const { return *_device; }
-    [[nodiscard]] GPU&       gpu() const { return _device->gpu(); }
-    [[nodiscard]] Queue&     queue() const { return _device->queue(); }
+    vk::Device vkdevice() const { return this->device().vkdevice(); }
+    Device&    device() const { return *_device; }
+    GPU&       gpu() const { return _device->gpu(); }
+    Queue&     queue() const { return _device->queue(); }
 
-    [[nodiscard]] vk::Extent2D extent() const { return this->_swapchain->present_extent(); }
+    vk::Extent2D extent() const { return this->_swapchain->present_extent(); }
+    vk::Viewport viewport() const;
+    vk::Rect2D   scissor() const;
 
-    [[nodiscard]] vk::Format color_format() const { return this->_swapchain->color_format(); }
-    [[nodiscard]] vk::Format depth_format() const { return this->_device->gpu().depth_stencil_format(); }
+    vk::Format color_format() const { return this->_swapchain->color_format(); }
+    vk::Format depth_format() const { return this->_device->gpu().depth_stencil_format(); }
 
     // 当前帧，和在 frame manager 中获得的是一样的
-    [[nodiscard]] Frame&        current_frame() const { return _frame_manager->current_frame(); }
-    [[nodiscard]] FrameManager& frame_manager() const { return *_frame_manager; }
+    Frame&        current_frame() const { return _frame_manager->current_frame(); }
+    FrameManager& frame_manager() const { return *_frame_manager; }
 
-    [[nodiscard]] ShaderLoader& shader_loader() const { return *_shader_loader; }
+    ShaderLoader& shader_loader() const { return *_shader_loader; }
 
 
     VmaAllocator                     allocator = {};

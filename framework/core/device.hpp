@@ -17,7 +17,7 @@ public:
 
 
 #pragma region 工具方法
-    [[nodiscard]] vk::DeviceMemory allocate_memory(const vk::MemoryRequirements&  mem_require,
+    vk::DeviceMemory allocate_memory(const vk::MemoryRequirements&  mem_require,
                                                    const vk::MemoryPropertyFlags& mem_prop) const;
 
     vk::Semaphore create_semaphore(bool signal = false);
@@ -38,11 +38,11 @@ private:
 public:
     Prop<vk::Device, Device> vkdevice{VK_NULL_HANDLE};
 
-    [[nodiscard]] Queue&       queue() const { return *this->_queue; }
-    [[nodiscard]] vk::Queue    vkqueue() const { return this->queue().vkqueue(); }
-    [[nodiscard]] GPU&         gpu() const { return _gpu; }
-    [[nodiscard]] CommandPool& command_pool() const { return *_command_pool; }
-    [[nodiscard]] FencePool&   fence_pool() const { return *_fence_pool; }
+    Queue&       queue() const { return *this->_queue; }
+    vk::Queue    vkqueue() const { return this->queue().vkqueue(); }
+    GPU&         gpu() const { return _gpu; }
+    CommandPool& command_pool() const { return *_command_pool; }
+    FencePool&   fence_pool() const { return *_fence_pool; }
 
 #pragma endregion
 

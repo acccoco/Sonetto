@@ -18,16 +18,16 @@ public:
     }
 
 
-    [[nodiscard]] bool has_resized() const { return _user_data.resized; }
+    bool has_resized() const { return _user_data.resized; }
 
 
-    [[nodiscard]] vk::SurfaceKHR create_surface(vk::Instance instance) const;
+    vk::SurfaceKHR create_surface(vk::Instance instance) const;
 
 
     // 获取窗口的大小，单位是 pixel
-    [[nodiscard]] vk::Extent2D get_extent() const;
+    vk::Extent2D get_extent() const;
 
-    [[nodiscard]] bool should_close() const { return glfwWindowShouldClose(this->window); }
+    bool should_close() const { return glfwWindowShouldClose(this->window); }
 
 
     // 处理窗口系统的各种事件：鼠标，键盘
@@ -40,7 +40,7 @@ public:
 
 
     // vulkan 所需的 instance extension
-    [[nodiscard]] std::vector<const char*> get_extensions() const;
+    std::vector<const char*> get_extensions() const;
 
 
 private:

@@ -27,8 +27,8 @@ public:
     Prop<uint32_t, Texture>              channels{0};    // 实际的通道数
     Prop<std::filesystem::path, Texture> path;
 
-    [[nodiscard]] Image2D&    image() const { return *_image; }
-    [[nodiscard]] vk::Sampler sampler() const { return _sampler; }
+    Image2D&    image() const { return *_image; }
+    vk::Sampler sampler() const { return _sampler; }
 
 
 private:

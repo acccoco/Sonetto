@@ -15,13 +15,6 @@ void Hello::App::prepare()
     create_uniform_buffer();
     init_descriptor_set();
 
-    // 顶点数据
-    _index_buffer  = new Hiss::IndexBuffer2(engine.device(), engine.allocator, indices);
-    _vertex_buffer = new Hiss::VertexBuffer2<Hiss::Vertex2DColor>(engine.device(), engine.allocator, vertices);
-
-    // 深度缓冲
-    _depth_image = engine.create_depth_image();
-
 
     // 初始化 per frame payload
     _payloads.resize(engine.frame_manager().frames().size());
@@ -36,12 +29,6 @@ void Hello::App::prepare()
 
 void Hello::App::create_pipeline()
 {
-    // 创建 descriptor set layout
-    _descriptor_set_layout = engine.vkdevice().createDescriptorSetLayout(vk::DescriptorSetLayoutCreateInfo{
-            .bindingCount = (uint32_t) descriptor_bindings.size(),
-            .pBindings    = descriptor_bindings.data(),
-    });
-
 
     // pipelien layout
     _pipeline_layout = engine.vkdevice().createPipelineLayout({
@@ -83,41 +70,20 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
             {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
             vk::ImageLayout::eColorAttachmentOptimal, true);
 
-    auto color_attach_info = vk::RenderingAttachmentInfo{
-            .imageView   = frame.image().view().vkview,
-            .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .loadOp      = vk::AttachmentLoadOp::eClear,
-            .storeOp     = vk::AttachmentStoreOp::eStore,
-            .clearValue  = vk::ClearValue{.color = {.float32 = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.f}}},
-    };
-    auto depth_attach_info = vk::RenderingAttachmentInfo{
-            .imageView   = _depth_image->view().vkview,
-            .imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-            .loadOp      = vk::AttachmentLoadOp::eClear,
-            .storeOp     = vk::AttachmentStoreOp::eDontCare,
-            .clearValue  = vk::ClearValue{.depthStencil = {1.f, 0}},
-    };
+    color_attach_info.imageView = frame.image().vkview();
 
     /* 绘制过程 */
-    command_buffer.beginRendering(vk::RenderingInfo{
-            .renderArea           = {.offset = {0, 0}, .extent = engine.extent()},
-            .layerCount           = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments    = &color_attach_info,
-            .pDepthAttachment     = &depth_attach_info,
-    });
-
-
-    assert(_vertex_buffer && _index_buffer);
-    command_buffer.bindVertexBuffers(0, {_vertex_buffer->vkbuffer()}, {0});
-    command_buffer.bindIndexBuffer(_index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
-    command_buffer.setViewport(
-            0, viewport.setWidth((float) engine.extent().width).setHeight((float) engine.extent().height));
-    command_buffer.setScissor(0, vk::Rect2D{.extent = engine.extent()});
-    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0, {_descriptor_set}, {});
-    command_buffer.drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-
+    command_buffer.beginRendering(render_info);
+    {
+        assert(_vertex_buffer && _index_buffer);
+        command_buffer.bindVertexBuffers(0, {_vertex_buffer->vkbuffer()}, {0});
+        command_buffer.bindIndexBuffer(_index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
+        command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+        command_buffer.setViewport(0, engine.viewport());
+        command_buffer.setScissor(0, engine.scissor());
+        command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0, {_descriptor_set}, {});
+        command_buffer.drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+    }
     command_buffer.endRendering();
 
 
@@ -155,7 +121,7 @@ void Hello::App::resize()
 {
     // depth attachmetn
     delete _depth_image;
-    _depth_image = engine.create_depth_image();
+    _depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
 
     // payload
 }
@@ -183,27 +149,13 @@ void Hello::App::clean()
 
 void Hello::App::init_descriptor_set()
 {
-    // 创建 descriptor set
-    _descriptor_set = engine.vkdevice()
-                              .allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
-                                      .descriptorPool     = engine.descriptor_pool(),
-                                      .descriptorSetCount = 1,
-                                      .pSetLayouts        = &_descriptor_set_layout,
-                              })
-                              .front();
-
     // 绑定 uniform buffer
     assert(_uniform_buffer);
-    auto uniform_buffer_info = vk::DescriptorBufferInfo{_uniform_buffer->vkbuffer(), 0, VK_WHOLE_SIZE};
-    engine.vkdevice().updateDescriptorSets({vk::WriteDescriptorSet{
-                                                   .dstSet          = _descriptor_set,
-                                                   .dstBinding      = 0,
-                                                   .dstArrayElement = 0,
-                                                   .descriptorCount = 1,
-                                                   .descriptorType  = vk::DescriptorType::eUniformBuffer,
-                                                   .pBufferInfo     = &uniform_buffer_info,
-                                           }},
-                                           {});
+
+    Hiss::Initial::descriptor_set_write(engine.vkdevice(), _descriptor_set,
+                                        {
+                                                {vk::DescriptorType::eUniformBuffer, {.buffer = _uniform_buffer}},
+                                        });
 }
 
 
