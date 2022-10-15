@@ -5,5 +5,5 @@ add_sample(
         TARGET_NAME ${FOLDER_NAME}
         SHADER_DIR "${PROJ_SHADER_DIR}/forward_plus"
         SOURCES "app.cpp"
-        SHADER_NAMES
+        SHADER_NAMES "frustum.comp" "light_cull.comp" "final.frag"
 )

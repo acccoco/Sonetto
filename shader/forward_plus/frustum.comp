@@ -1,0 +1,110 @@
+/**
+ * 预计算 frustum
+ * frustum 的平面朝向内部
+ * 平面参数是 view space 中的参数
+ */
+#version 450
+#extension GL_GOOGLE_include_directive: enable
+#include "./common.glsl"
+
+
+layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout (std430, set = 0, binding = 0) buffer ssbo
+{
+    Frustum Frustums[];
+};
+layout (std140, set = 0, binding = 1) uniform ubo
+{
+    mat4 IProjection;       // projection 矩阵的逆矩阵
+    uvec2 ScreenDimension;  // 屏幕的尺寸
+    vec2 NearFar;           // 近平面和远平面的距离，正数
+};
+
+
+/**
+ * 根据三个顶点得到平面的参数
+ * 平面方向由右手确定
+ */
+Plane compute_plane(vec3 p0, vec3 p1, vec3 p2)
+{
+    Plane plane;
+
+    vec3 v1 = p1 - p0;
+    vec3 v2 = p2 - p0;
+    plane.N = normalize(cross(v1, v2));
+
+    plane.d = dot(plane.N, p0);
+
+    return plane;
+}
+
+
+vec4 clip_to_view(vec4 clip)
+{
+    vec4 view = IProjection * clip;
+    view /= view.w;
+    return view;
+}
+
+
+/**
+ * 从 screen space 变换到 view space
+ * 参考：https://www.khronos.org/opengl/wiki/Compute_eye_space_from_window_space
+ */
+vec4 screen_to_view(vec4 screen)
+{
+    // 首先变换到 NDC: [-1, 1] * [-1, 1] * [0, 1]
+    vec4 NDC = vec4(screen.xy / ScreenDimension * 2 - 1, screen.z, 1);
+
+    // 变换到 clip，需要真实的深度值
+    vec4 clip = NDC / screen.w;
+    return clip_to_view(clip);
+}
+
+
+// 每个 thread 负责一个 tile
+void main()
+{
+    // view space 中 eye 的坐标
+    const vec3 eye_pos = vec3(0);
+
+    // screen space 中 tile 的 4 个 corner 的坐标
+    // 每个 thread 对应一个 tile
+    // frag 坐标遵循 glsl 的规则：xy 是屏幕上的坐标，z 是深度 [0, 1]，w = 1 / clip_w，也就是 1 / far
+    //   0 ----- 1---> x
+    //   |       |
+    //   |       |
+    //   2 ----- 3
+    //   v y
+    vec4 tile_corners_screen[4];
+    const float frag_w = 1.0 / NearFar.y;
+    tile_corners_screen[0] = vec4(gl_GlobalInvocationID.xy * TILE_SIZE, 1, frag_w);
+    tile_corners_screen[1] = vec4((gl_GlobalInvocationID.xy + vec2(1, 0)) * TILE_SIZE, 1, frag_w);
+    tile_corners_screen[2] = vec4((gl_GlobalInvocationID.xy + vec2(0, 1)) * TILE_SIZE, 1, frag_w);
+    tile_corners_screen[3] = vec4((gl_GlobalInvocationID.xy + vec2(1, 1)) * TILE_SIZE, 1, frag_w);
+
+    // 从 screen 转换为 view space
+    vec3 tile_corners_view[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        tile_corners_view[i] = screen_to_view(tile_corners_screen[i]).xyz;
+    }
+
+
+    // 得到 frustum 的平面
+    Frustum frustum;
+    frustum.left = compute_plane(eye_pos, tile_corners_view[2], tile_corners_view[0]);
+    frustum.right = compute_plane(eye_pos, tile_corners_view[1], tile_corners_view[3]);
+    frustum.top = compute_plane(eye_pos, tile_corners_view[0], tile_corners_view[1]);
+    frustum.bottom = compute_plane(eye_pos, tile_corners_view[3], tile_corners_view[2]);
+
+
+    // 将平面的参数存放到 SSBO 中
+    // 每个 thread 负责一个 tile
+    uint thread_global_index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * gl_WorkGroupSize.x * gl_NumWorkGroups.x;
+    if (tile_corners_screen[3].x <= ScreenDimension.x && tile_corners_screen[3].y <= ScreenDimension.y)
+    {
+        uint index = thread_global_index;
+        Frustums[index] = frustum;
+    }
+}
