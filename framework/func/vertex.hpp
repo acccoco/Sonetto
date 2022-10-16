@@ -59,6 +59,49 @@ struct Vertex3DColorUv
     static std::vector<vk::VertexInputAttributeDescription> input_attribute_description(uint32_t binding);
 };
 
+
+struct Vertex3DNormalUV
+{
+    glm::vec3 pos;
+    glm::vec3 normal;
+    glm::vec2 uv;
+
+    static std::vector<vk::VertexInputBindingDescription> input_binding_description(uint32_t binding = 0)
+    {
+        return {
+                vk::VertexInputBindingDescription{
+                        // 表示一个 vertex buffer，一次渲染的顶点数据可能位于多个 vertex buffer 中
+                        .binding   = binding,
+                        .stride    = sizeof(Hiss::Vertex3DNormalUV),
+                        .inputRate = vk::VertexInputRate::eVertex,
+                },
+        };
+    }
+    static std::vector<vk::VertexInputAttributeDescription> input_attribute_description(uint32_t binding = 0)
+    {
+        return {
+                vk::VertexInputAttributeDescription{
+                        .location = 0,
+                        .binding  = binding,
+                        .format   = vk::Format::eR32G32B32Sfloat,    // signed float
+                        .offset   = offsetof(Vertex3DNormalUV, pos),
+                },
+                vk::VertexInputAttributeDescription{
+                        .location = 1,
+                        .binding  = binding,
+                        .format   = vk::Format::eR32G32B32Sfloat,
+                        .offset   = offsetof(Vertex3DNormalUV, normal),
+                },
+                vk::VertexInputAttributeDescription{
+                        .location = 2,
+                        .binding  = binding,
+                        .format   = vk::Format::eR32G32Sfloat,
+                        .offset   = offsetof(Vertex3DNormalUV, uv),
+                },
+        };
+    }
+};
+
 }    // namespace Hiss
 
 

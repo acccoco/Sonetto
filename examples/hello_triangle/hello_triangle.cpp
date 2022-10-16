@@ -17,12 +17,11 @@ void Hello::App::prepare()
 
 
     // 初始化 per frame payload
-    _payloads.resize(engine.frame_manager().frames().size());
-    for (auto& _payload: _payloads)
+    _payloads.resize(engine.frame_manager().frames_number());
+    for (auto& payload: _payloads)
     {
-        FramePayload payload;
         payload.command_buffer = engine.device().command_pool().command_buffer_create(1).front();
-        _payload               = payload;
+        payload.depth_buffer   = engine.create_depth_attach();
     }
 }
 
@@ -57,11 +56,9 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
 {
     command_buffer.begin(vk::CommandBufferBeginInfo{});
 
-
-    // depth attachment execution barrier: 确保对 depth buffer 的写入不会乱序
-    _depth_image->execution_barrier(
-            command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
-            {vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::AccessFlagBits::eDepthStencilAttachmentWrite});
+    //////////////////////////////////////////////////
+    // 每一帧都有各自的 depth buffer，因此不用担心 data race
+    //////////////////////////////////////////////////
 
 
     // color attachment layout transfer: undefined -> present （无需保留之前的内容）
@@ -71,14 +68,16 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
             vk::ImageLayout::eColorAttachmentOptimal, true);
 
     color_attach_info.imageView = frame.image().vkview();
+    depth_attach_info.imageView = payload.depth_buffer->vkview();
 
     /* 绘制过程 */
     command_buffer.beginRendering(render_info);
     {
         assert(_vertex_buffer && _index_buffer);
+        command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
+
         command_buffer.bindVertexBuffers(0, {_vertex_buffer->vkbuffer()}, {0});
         command_buffer.bindIndexBuffer(_index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
-        command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, _pipeline);
         command_buffer.setViewport(0, engine.viewport());
         command_buffer.setScissor(0, engine.scissor());
         command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _pipeline_layout, 0, {_descriptor_set}, {});
@@ -107,11 +106,7 @@ void Hello::App::update() noexcept
     /* draw */
     record_command(payload.command_buffer, payload, frame);
 
-    engine.queue().submit_commands(
-            {
-                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()},
-            },
-            {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
+    engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
 
     engine.frame_manager().submit_frame();
 }
@@ -119,11 +114,7 @@ void Hello::App::update() noexcept
 
 void Hello::App::resize()
 {
-    // depth attachmetn
-    delete _depth_image;
-    _depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
-
-    // payload
+    // 不用 resize 了
 }
 
 
@@ -133,10 +124,9 @@ void Hello::App::clean()
 
     // 清理 payload
     for (auto& payload: _payloads)
-        ;
+        delete payload.depth_buffer;
 
     // 清理其他的
-    delete _depth_image;
     delete _vertex_buffer;
     delete _index_buffer;
     delete _uniform_buffer;
@@ -154,13 +144,13 @@ void Hello::App::init_descriptor_set()
 
     Hiss::Initial::descriptor_set_write(engine.vkdevice(), _descriptor_set,
                                         {
-                                                {vk::DescriptorType::eUniformBuffer, {.buffer = _uniform_buffer}},
+                                                {.type = vk::DescriptorType::eUniformBuffer, .buffer = _uniform_buffer},
                                         });
 }
 
 
 void Hello::App::create_uniform_buffer()
 {
-    _uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(UniformData));
-    _uniform_buffer->memory_copy(&_ubo, sizeof(UniformData));
+    _uniform_buffer = new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(UniformData), "");
+    _uniform_buffer->mem_copy(&_ubo, sizeof(UniformData));
 }

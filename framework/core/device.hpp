@@ -18,12 +18,18 @@ public:
 
 #pragma region 工具方法
     vk::DeviceMemory allocate_memory(const vk::MemoryRequirements&  mem_require,
-                                                   const vk::MemoryPropertyFlags& mem_prop) const;
+                                     const vk::MemoryPropertyFlags& mem_prop) const;
 
-    vk::Semaphore create_semaphore(bool signal = false);
+    vk::Semaphore create_semaphore(const std::string& debug_name = "", bool signal = false);
 
     template<class handle_t>
     void set_debug_name(vk::ObjectType type, handle_t handle, const std::string& name) const;
+
+
+    vk::CommandBuffer create_commnad_buffer(const std::string& debug_name)
+    {
+        return _command_pool->command_buffer_create(debug_name);
+    }
 #pragma endregion
 
 

@@ -61,8 +61,7 @@ void Hiss::Device::create_command_pool()
 {
     _command_pool = new CommandPool(*this, *_queue);
 
-    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool->vkpool(),
-                         "default command pool");
+    this->set_debug_name(vk::ObjectType::eCommandPool, (VkCommandPool) _command_pool->vkpool(), "default command pool");
 }
 
 
@@ -100,11 +99,17 @@ vk::DeviceMemory Hiss::Device::allocate_memory(const vk::MemoryRequirements&  me
 }
 
 
-vk::Semaphore Hiss::Device::create_semaphore(bool signal)
+vk::Semaphore Hiss::Device::create_semaphore(const std::string& debug_name, bool signal)
 {
     assert(_fence_pool);
 
     vk::Semaphore semaphore = vkdevice().createSemaphore({});
+
+    if (!debug_name.empty())
+    {
+        set_debug_name(vk::ObjectType::eSemaphore, (VkSemaphore) semaphore, debug_name);
+    }
+
     if (!signal)
         return semaphore;
 

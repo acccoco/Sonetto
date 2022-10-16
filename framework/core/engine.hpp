@@ -6,6 +6,7 @@
 #include "swapchain.hpp"
 #include "vk_common.hpp"
 #include "frame.hpp"
+#include "frame_manager.hpp"
 
 
 namespace Hiss
@@ -52,7 +53,7 @@ public:
     // layout 转换为 present，保留之前的数据，最后一个 stage 是 color attachment
     static void color_attach_layout_trans_2(vk::CommandBuffer command_buffer, Image2D& image);
 
-    vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout);
+    vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout, const std::string& debug_name ="");
 
 #pragma endregion
 
@@ -80,6 +81,12 @@ public:
     vk::Extent2D extent() const { return this->_swapchain->present_extent(); }
     vk::Viewport viewport() const;
     vk::Rect2D   scissor() const;
+
+    // 画面的长宽比
+    float aspect() const
+    {
+        return (float) _swapchain->present_extent().width / (float) _swapchain->present_extent().height;
+    }
 
     vk::Format color_format() const { return this->_swapchain->color_format(); }
     vk::Format depth_format() const { return this->_device->gpu().depth_stencil_format(); }

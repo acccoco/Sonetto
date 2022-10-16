@@ -8,8 +8,8 @@ namespace Hiss
 
 /**
  * 资源管理：
- * - 用完记得归还，方便复用
- * - 外部不应该 destroy semaphore，pool 在销毁时会自动 destroy 所有的 semaphore
+ * \n - 用完记得归还，方便复用
+ * \n - 外部不应该 destroy semaphore，pool 在销毁时会自动 destroy 所有的 semaphore
  */
 class SemaphorePool
 {
@@ -24,6 +24,9 @@ public:
             _device.vkdevice().destroy(semaphore);
     }
 
+    /**
+     * 向 pool 申请一个 semaphore，状态是 unsignaled
+     */
     vk::Semaphore acquire()
     {
         if (_available_semaphores.empty())
@@ -47,8 +50,12 @@ public:
 private:
     Device& _device;
 
+
+    // 当前 pool 中可用的 semaphore
     std::vector<vk::Semaphore> _available_semaphores = {};
-    std::vector<vk::Semaphore> _all_semaphores       = {};
+
+    // 从当前 pool 创建的所有 semaphore
+    std::vector<vk::Semaphore> _all_semaphores = {};
 
     const uint32_t MAX_NUMBER = 64;
 };

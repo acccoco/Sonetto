@@ -8,9 +8,9 @@
 #include <spdlog/spdlog.h>
 
 
-// 默认的窗口大小
-const int32_t WINDOW_WIDTH  = 1280;
-const int32_t WINDOW_HEIGHT = 720;
+// 默认的窗口大小，单位并不是 pixel
+const int32_t WINDOW_WIDTH  = 800;
+const int32_t WINDOW_HEIGHT = 800;
 
 
 // spdlog 的配置

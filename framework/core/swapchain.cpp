@@ -5,9 +5,9 @@ Hiss::Swapchain::Swapchain(Device& device, Window& window, vk::SurfaceKHR surfac
       _window(window),
       _surface(surface)
 {
-    _present_format = choose_present_format();
-    _present_mode   = choose_present_mode();
-    present_extent  = choose_surface_extent();
+    _present_format = _choose_present_format();
+    _present_mode   = _choose_present_mode();
+    present_extent  = _choose_surface_extent();
 
     spdlog::info("[swapchain] image format: {}", vk::to_string(_present_format.format));
     spdlog::info("[swapchain] colorspace: {}", vk::to_string(_present_format.colorSpace));
@@ -17,6 +17,7 @@ Hiss::Swapchain::Swapchain(Device& device, Window& window, vk::SurfaceKHR surfac
     create_swapchain();
     auto images = device.vkdevice().getSwapchainImagesKHR(_swapchain);
 
+    // 在 swapchain 的 vkImage 的基础上创建应用自己的 image 对象
     _images2.resize(images.size());
     for (int i = 0; i < images.size(); ++i)
         _images2[i] =
@@ -35,14 +36,11 @@ Hiss::Swapchain::~Swapchain()
 }
 
 
-vk::SurfaceFormatKHR Hiss::Swapchain::choose_present_format()
+vk::SurfaceFormatKHR Hiss::Swapchain::_choose_present_format()
 {
     std::vector<vk::SurfaceFormatKHR> format_list = _device.gpu().vkgpu().getSurfaceFormatsKHR(_surface);
     if (format_list.empty())
         throw std::runtime_error("fail to find surface format.");
-//    for (auto format: format_list)
-//        spdlog::debug("[swpachain] surface supported format: ({}, {})", to_string(format.format),
-//                      to_string(format.colorSpace));
 
 
     // 优选 srgb
@@ -53,22 +51,40 @@ vk::SurfaceFormatKHR Hiss::Swapchain::choose_present_format()
 }
 
 
-vk::PresentModeKHR Hiss::Swapchain::choose_present_mode()
+vk::PresentModeKHR Hiss::Swapchain::_choose_present_mode()
 {
+    /**
+     * 优先选择 mailbox（不会画面撕裂，且延迟相对较低）；候补选择 fifo（不会造成画面撕裂）
+     */
+
     std::vector<vk::PresentModeKHR> present_mode_list = _device.gpu().vkgpu().getSurfacePresentModesKHR(_surface);
+
+
     for (const auto& present_mode: present_mode_list)
+        /**
+         * Mailbox: presentation engine 会等待 vertical blanking period，在此期间才会将 image 更新到 surface 上
+         * @details 会有个队列用于处理 present 请求，队列长度为 1。新的请求到来时，如果队列是满的，那么新的请求
+         *  会将之前的请求挤出队列，在此之前的 image 都可以被复用了。
+         */
         if (present_mode == vk::PresentModeKHR::eMailbox)
         {
             return present_mode;
         }
+
+
+    /**
+     * Fifo: presentation engine 会等待 vertical blanking period，只有在此期间才会将 image 更新到 surface 上
+     * @details fifo 是一定会被支持的 prsent mode，不会发生画面撕裂
+     * @details 内部会有一个队列，用于接受 present 的请求。在 vertical blanking period 期间，会从队列头部取出
+     *  present 请求进行处理；新来的 present 请求追加到队列尾部
+     */
     return vk::PresentModeKHR::eFifo;
 }
 
 
-vk::Extent2D Hiss::Swapchain::choose_surface_extent()
+vk::Extent2D Hiss::Swapchain::_choose_surface_extent()
 {
     auto capability = _device.gpu().vkgpu().getSurfaceCapabilitiesKHR(_surface);
-
 
     /* 询问 glfw，当前窗口的大小是多少（pixel） */
     auto window_extent = _window.get_extent();
@@ -83,12 +99,13 @@ vk::Extent2D Hiss::Swapchain::choose_surface_extent()
 
 void Hiss::Swapchain::create_swapchain()
 {
-    /**
-     * 确定 swapchain 中 image 的数量
-     * minImageCount 至少是 1; maxImageCount 为 0 时表示没有限制
-     */
     auto     capability = _device.gpu().vkgpu().getSurfaceCapabilitiesKHR(_surface);
     uint32_t image_cnt  = capability.minImageCount + 1;
+
+    /**
+     * 确保 swapchain 中 image 的数量不会超过 surface 的限制
+     * \n maxImageCount 为 0 表示没有最大数量的限制
+     */
     if (capability.maxImageCount > 0 && image_cnt > capability.maxImageCount)
         image_cnt = capability.maxImageCount;
 
@@ -111,12 +128,11 @@ void Hiss::Swapchain::create_swapchain()
 }
 
 
-uint32_t Hiss::Swapchain::acquire_image(vk::Semaphore signal_semaphore) const
+uint32_t Hiss::Swapchain::acquire_image(vk::Semaphore to_signal_semaphore, vk::Fence to_signal_fence) const
 {
-    /* 这里不用 vulkan-cpp，因为错误处理有些问题 */
     uint32_t image_idx;
-    auto     result = static_cast<vk::Result>(
-            vkAcquireNextImageKHR(_device.vkdevice(), _swapchain, UINT64_MAX, signal_semaphore, {}, &image_idx));
+    auto     result = static_cast<vk::Result>(vkAcquireNextImageKHR(_device.vkdevice(), _swapchain, UINT64_MAX,
+                                                                    to_signal_semaphore, to_signal_fence, &image_idx));
     if (result == vk::Result::eErrorOutOfDateKHR)
     {
         spdlog::warn("swapchain image out of data (acquire image)");

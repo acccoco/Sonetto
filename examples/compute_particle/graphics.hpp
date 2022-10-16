@@ -73,13 +73,13 @@ struct Graphics
     Hiss::Image2D* depth_image = nullptr;
 
 
-    Hiss::Buffer2* storage_buffer = nullptr;
+    Hiss::Buffer* storage_buffer = nullptr;
     uint32_t       num_particles  = 0;
 
     Hiss::Engine& engine;
 
 
-    Graphics(Hiss::Engine& engine, Hiss::Buffer2* storage_buffer, uint32_t num_particles)
+    Graphics(Hiss::Engine& engine, Hiss::Buffer* storage_buffer, uint32_t num_particles)
         : storage_buffer(storage_buffer),
           num_particles(num_particles),
           engine(engine)
@@ -128,11 +128,7 @@ public:
 
 
         // 绘制
-        engine.queue().submit_commands(
-                {
-                        {vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()},
-                },
-                {command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
+        engine.queue().submit_commands({}, {command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
     }
 
 
@@ -169,10 +165,10 @@ private:
     // 读取纹理资源
     void load_assets()
     {
-        tex_particle = new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path,
-                                         vk::Format::eR8G8B8A8Srgb, false);
-        tex_gradient = new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path,
-                                         vk::Format::eR8G8B8A8Srgb, false);
+        tex_particle =
+                new Hiss::Texture(engine.device(), engine.allocator, tex_particle_path, vk::Format::eR8G8B8A8Srgb);
+        tex_gradient =
+                new Hiss::Texture(engine.device(), engine.allocator, tex_gradient_path, vk::Format::eR8G8B8A8Srgb);
     }
 
 
@@ -184,8 +180,8 @@ private:
 
         for (auto& payload: payloads)
         {
-            payload.uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(ubo));
-            payload.uniform_buffer->memory_copy(&ubo, sizeof(ubo));
+            payload.uniform_buffer = new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(ubo), "");
+            payload.uniform_buffer->mem_copy(&ubo, sizeof(ubo));
         }
     }
 
@@ -383,7 +379,7 @@ private:
     void update_uniform_buffer(Hiss::UniformBuffer& buffer)
     {
         update_ubo();
-        buffer.memory_copy(&ubo, sizeof(ubo));
+        buffer.mem_copy(&ubo, sizeof(ubo));
     }
 
 

@@ -4,32 +4,32 @@
 
 struct Particle
 {
-    vec3 pos;
+    vec3  pos;
     float point_size;
-    vec3 vel;
+    vec3  vel;
     float color_uv;
 };
 
 
-layout (push_constant) uniform _
+layout(push_constant) uniform _
 {
     float time;
-    uint kernel_id;
+    uint  kernel_id;
     float trans_progress;
 };
 
-layout (constant_id = 0) const uint DIM = 64;    // 每个方向上各有多少个粒子
-layout (constant_id = 1) const float STEP = 0.1f;
+layout(constant_id = 0) const uint DIM   = 64;    // 每个方向上各有多少个粒子
+layout(constant_id = 1) const float STEP = 0.1f;
 
 
 // storage buffer
-layout (std430, set = 0, binding = 0) buffer Data
+layout(std430, set = 0, binding = 0) buffer Data
 {
     Particle particles[];
 };
 
 // workgroup 的尺寸
-layout (local_size_x_id = 2, local_size_y_id = 3, local_size_z = 1) in;
+layout(local_size_x_id = 2, local_size_y_id = 3, local_size_z = 1) in;
 
 
 // 根据 global id 得到 uv 坐标 [-1, 1] * [-1, 1]
@@ -43,10 +43,10 @@ vec2 get_uv(uvec3 global_id)
 void set_position(uvec3 global_id, vec3 position)
 {
     if (global_id.x >= DIM || global_id.y >= DIM)
-    return;
+        return;
 
     // w 分量表示尺寸
-    particles[global_id.x + global_id.y * DIM].pos = position;
+    particles[global_id.x + global_id.y * DIM].pos        = position;
     particles[global_id.x + global_id.y * DIM].point_size = 3.0;
 }
 
@@ -76,7 +76,7 @@ vec3 MultiWave(float u, float v)
 vec3 Ripple(float u, float v)
 {
     float d = sqrt(u * u + v * v);
-    vec3 p;
+    vec3  p;
     p.x = u;
     p.y = sin(PI * (4.0 * d - time));
     p.y /= 1.0 + 10.0 * d;
@@ -88,7 +88,7 @@ vec3 Sphere(float u, float v)
 {
     float r = 0.9 + 0.1 * sin(PI * (12.0 * u + 8.0 * v + time));
     float s = r * cos(0.5 * PI * v);
-    vec3 p;
+    vec3  p;
     p.x = s * sin(PI * u);
     p.y = r * sin(0.5 * PI * v);
     p.z = s * cos(PI * u);
@@ -99,8 +99,8 @@ vec3 Torus(float u, float v)
 {
     float r1 = 0.7 + 0.1 * sin(PI * (8.0 * u + 0.5 * time));
     float r2 = 0.15 + 0.05 * sin(PI * (16.0 * u + 8.0 * v + 3.0 * time));
-    float s = r2 * cos(PI * v) + r1;
-    vec3 p;
+    float s  = r2 * cos(PI * v) + r1;
+    vec3  p;
     p.x = s * sin(PI * u);
     p.y = r2 * sin(PI * v);
     p.z = s * cos(PI * u);

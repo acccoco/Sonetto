@@ -120,20 +120,20 @@ void Hiss::Image2D::copy_buffer_to_image(vk::Buffer buffer)
 //}
 
 
-Hiss::Image2D::Image2D(VmaAllocator allocator, Hiss::Device& device, const Hiss::Image2D::Info& info)
+Hiss::Image2D::Image2D(VmaAllocator allocator, Hiss::Device& device, const Hiss::Image2DCreateInfo& info)
     : name(info.name),
       format(info.format),
       extent(info.extent),
       aspect(info.aspect),
-      mip_levels(info.mip_levels),
       _device(device),
-      _allocator(allocator)
+      _allocator(allocator),
+      _layout(vk::ImageLayout::eUndefined)
 {
     VkImageCreateInfo image_info = vk::ImageCreateInfo{
             .imageType     = vk::ImageType::e2D,
             .format        = info.format,
             .extent        = {.width = info.extent.width, .height = info.extent.height, .depth = 1},
-            .mipLevels     = info.mip_levels,
+            .mipLevels     = 1,
             .arrayLayers   = 1,
             .samples       = info.samples,
             .tiling        = info.tiling,
@@ -152,16 +152,13 @@ Hiss::Image2D::Image2D(VmaAllocator allocator, Hiss::Device& device, const Hiss:
     if (!info.name.empty())
         _device.set_debug_name(vk::ObjectType::eImage, vkimage._value, info.name);
 
-    // 写入 layout 信息
-    _layouts = std::vector<vk::ImageLayout>(info.mip_levels, vk::ImageLayout::eUndefined);
-
 
     // 进行 layout 转换
     if (info.init_layout != vk::ImageLayout::eUndefined)
-        transfer_layout_im(vk::ImageLayout::eUndefined, info.init_layout, 0, info.mip_levels);
+        transfer_layout_im(info.init_layout);
 
     // 创建基础的 view
-    _views.push_back(create_view(0, 1));
+    _create_view();
 }
 
 
@@ -172,13 +169,11 @@ Hiss::Image2D::Image2D(Hiss::Device& device, vk::Image image, const std::string&
       format(format),
       extent(extent),
       aspect(aspect),
-      mip_levels(1),
       _device(device),
       is_proxy(true),
-      _layouts({layout})
+      _layout(layout)
 {
-    // 创建基本的 view
-    _views.push_back(create_view(0, 1));
+    _create_view();
 }
 
 
@@ -186,122 +181,20 @@ Hiss::Image2D::~Image2D()
 {
     if (!is_proxy)
         vmaDestroyImage(_allocator, vkimage._value, _allocation);
-    for (auto& view: _views)
-        _device.vkdevice().destroy(view.vkview);
+    _device.vkdevice().destroy(view._value.vkview);
 }
 
 
-Hiss::Image2D::View Hiss::Image2D::view(uint32_t base_mip, uint32_t mip_count)
+void Hiss::Image2D::transfer_layout_im(vk::ImageLayout new_layout)
 {
-    assert(base_mip + mip_count <= mip_levels._value);
 
-    // 查询是否存在这个 view
-    for (auto& view: _views)
-    {
-        if (view.range.baseMipLevel == base_mip && view.range.levelCount == mip_count)
-            return view;
-    }
-
-    // 不存在，新创建
-    View view = create_view(base_mip, mip_count);
-    _views.push_back(view);
-    return view;
-}
-
-
-void Hiss::Image2D::transfer_layout_im(vk::ImageLayout new_layout, uint32_t base_level, uint32_t level_count)
-{
-    assert(base_level + level_count <= mip_levels._value);
-
-    // layout 连续相同的 level 为一组，进行一次 transfer
-    uint32_t start_level = base_level;
-    uint32_t end_level   = start_level + level_count;
-    while (start_level < end_level)
-    {
-        uint32_t same_count = 0;    // layout 相同的连续 level 数量
-        for (uint32_t level = start_level; level < end_level; ++level)
-            if (_layouts[level] == _layouts[start_level])
-                ++same_count;
-
-        transfer_layout_im(_layouts[start_level], new_layout, start_level, same_count);
-        start_level += same_count;
-    }
-}
-
-
-void Hiss::Image2D::execution_barrier(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
-                                      uint32_t base_level, uint32_t level_count)
-{
-    assert(base_level + level_count <= mip_levels._value);
-
-    command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {}, {},
-                                   {vk::ImageMemoryBarrier{
-                                           .srcAccessMask    = {},
-                                           .dstAccessMask    = dst.access,
-                                           .oldLayout        = _layouts[base_level],
-                                           .newLayout        = _layouts[base_level],
-                                           .image            = vkimage._value,
-                                           .subresourceRange = view(base_level, level_count).range,
-                                   }});
-}
-
-
-void Hiss::Image2D::transfer_layout(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
-                                    vk::ImageLayout new_layout, bool clear, uint32_t base_level, uint32_t level_count)
-{
-    assert(base_level + level_count <= mip_levels._value);
-
-    command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {}, {},
-                                   {vk::ImageMemoryBarrier{
-                                           .srcAccessMask = src.access,
-                                           .dstAccessMask = dst.access,
-                                           .oldLayout     = clear ? vk::ImageLayout::eUndefined : _layouts[base_level],
-                                           .newLayout     = new_layout,
-                                           .image         = vkimage._value,
-                                           .subresourceRange = view(base_level, level_count).range,
-                                   }});
-
-    // 更新 layout 数据
-    for (int i = 0; i < level_count; ++i)
-        _layouts[base_level + i] = new_layout;
-}
-
-
-Hiss::Image2D::View Hiss::Image2D::create_view(uint32_t base_mip, uint32_t mip_count)
-{
-    vk::ImageSubresourceRange range = {
-            .aspectMask     = aspect._value,
-            .baseMipLevel   = base_mip,
-            .levelCount     = mip_count,
-            .baseArrayLayer = 0,
-            .layerCount     = 1,
-    };
-
-    vk::ImageView view = _device.vkdevice().createImageView(vk::ImageViewCreateInfo{
-            .image            = vkimage._value,
-            .viewType         = vk::ImageViewType::e2D,
-            .format           = format._value,
-            .subresourceRange = range,
-    });
-
-    if (!name._value.empty())
-        _device.set_debug_name(vk::ObjectType::eImageView, (VkImageView) view,
-                               fmt::format("{}_view_{}_{}", name._value, base_mip, mip_count));
-
-    return {.vkview = view, .range = range};
-}
-
-
-void Hiss::Image2D::transfer_layout_im(vk::ImageLayout old_layout, vk::ImageLayout new_layout, uint32_t base_mip,
-                                       uint32_t mip_count)
-{
     vk::ImageMemoryBarrier barrier = {
-            .oldLayout        = old_layout,
+            .oldLayout        = _layout,
             .newLayout        = new_layout,
             .image            = vkimage._value,
             .subresourceRange = {.aspectMask     = aspect._value,
-                                 .baseMipLevel   = base_mip,
-                                 .levelCount     = mip_count,
+                                 .baseMipLevel   = 0,
+                                 .levelCount     = 1,
                                  .baseArrayLayer = 0,
                                  .layerCount     = 1},
     };
@@ -313,6 +206,78 @@ void Hiss::Image2D::transfer_layout_im(vk::ImageLayout old_layout, vk::ImageLayo
 
 
     // 将 layout 的记录更新
-    for (int i = 0; i < mip_count; ++i)
-        _layouts[base_mip + i] = new_layout;
+    _layout = new_layout;
+}
+
+
+void Hiss::Image2D::execution_barrier(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst)
+{
+    command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {}, {},
+                                   {vk::ImageMemoryBarrier{
+                                           .srcAccessMask    = src.access,
+                                           .dstAccessMask    = dst.access,
+                                           .oldLayout        = _layout,
+                                           .newLayout        = _layout,
+                                           .image            = vkimage._value,
+                                           .subresourceRange = view().range,
+                                   }});
+}
+
+
+void Hiss::Image2D::transfer_layout(vk::CommandBuffer command_buffer, const StageAccess& src, const StageAccess& dst,
+                                    vk::ImageLayout new_layout, bool clear)
+{
+    command_buffer.pipelineBarrier(
+            src.stage, dst.stage, {}, {}, {},
+            {
+                    vk::ImageMemoryBarrier{.srcAccessMask    = src.access,
+                                           .dstAccessMask    = dst.access,
+                                           .oldLayout        = clear ? vk::ImageLayout::eUndefined : _layout,
+                                           .newLayout        = new_layout,
+                                           .image            = vkimage._value,
+                                           .subresourceRange = view().range},
+            });
+
+    // 更新 layout 数据
+    _layout = new_layout;
+}
+
+
+void Hiss::Image2D::_create_view()
+{
+    vk::ImageSubresourceRange range = {
+            .aspectMask     = aspect._value,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+    };
+
+    vk::ImageView vkview = _device.vkdevice().createImageView(vk::ImageViewCreateInfo{
+            .image            = vkimage._value,
+            .viewType         = vk::ImageViewType::e2D,
+            .format           = format._value,
+            .subresourceRange = range,
+    });
+
+    if (!name._value.empty())
+        _device.set_debug_name(vk::ObjectType::eImageView, (VkImageView) vkview, fmt::format("{}_view", name._value));
+
+    view._value.vkview = vkview;
+    view._value.range  = range;
+}
+
+
+void Hiss::Image2D::memory_barrier(const StageAccess& src, const StageAccess& dst, vk::ImageLayout old_layout,
+                                   vk::ImageLayout new_layout, vk::CommandBuffer command_buffer)
+{
+    command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {}, {},
+                                   {
+                                           vk::ImageMemoryBarrier{.srcAccessMask    = src.access,
+                                                                  .dstAccessMask    = dst.access,
+                                                                  .oldLayout        = old_layout,
+                                                                  .newLayout        = new_layout,
+                                                                  .image            = vkimage._value,
+                                                                  .subresourceRange = view().range},
+                                   });
 }

@@ -159,8 +159,7 @@ public:
         payload.command_buffer.reset();
         record_command(payload.command_buffer, frame);
 
-        engine.queue().submit_commands({{vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()}},
-                                       {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
+        engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
 
         engine.frame_manager().submit_frame();
     }
@@ -323,8 +322,7 @@ public:
     void create_descriptor_set()
     {
         // 读取纹理
-        tex_height =
-                new Hiss::Texture(engine.device(), engine.allocator, height_map, vk::Format::eR8G8B8A8Unorm, false);
+        tex_height = new Hiss::Texture(engine.device(), engine.allocator, height_map, vk::Format::eR8G8B8A8Unorm);
 
 
         // 设置初始的 ubo
@@ -336,8 +334,8 @@ public:
                                          (float) engine.extent().width / (float) engine.extent().height, 0.1f, 1024.f),
         };
         ubo.projection[1][1] *= -1.f;
-        uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(TeseUBO));
-        uniform_buffer->memory_copy(&ubo, sizeof(ubo));
+        uniform_buffer = new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(TeseUBO), "");
+        uniform_buffer->mem_copy(&ubo, sizeof(ubo));
 
 
         // 创建 descriptor set

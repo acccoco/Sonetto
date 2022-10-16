@@ -28,6 +28,7 @@ public:
 
     /**
      * 将 fence 归还给 fence pool，确保 fence 状态为 signaled
+     * wait 完成之后，fence 的状态就是 signaled
      */
     void revert(vk::Fence fence);
     void revert(const std::vector<vk::Fence>& fences);

@@ -78,6 +78,8 @@ public:
     Hiss::Texture tex  = Hiss::Texture(engine.device(), engine.allocator, model / "viking_room/tex/viking_room.png",
                                        vk::Format::eR8G8B8A8Srgb);
 
+    Hiss::Mesh mesh2_cube = Hiss::Mesh(engine, model / "cube/cube.obj");
+
 
 #pragma region pipeline 相关
 

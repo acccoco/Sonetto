@@ -33,7 +33,6 @@ void Hiss::Engine::prepare()
     VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
     _instance = new Instance(name(), &_debug_utils_messenger_info);
     VULKAN_HPP_DEFAULT_DISPATCHER.init(_instance->vkinstance());
-    spdlog::info("[engine] instance created.");
 
 
     // 创建 validation 的 debug messenger
@@ -49,12 +48,10 @@ void Hiss::Engine::prepare()
     if (!physical_device.has_value())
         throw std::runtime_error("no suitable gpu found.");
     _physical_device = new GPU(physical_device.value(), _surface);
-    spdlog::info("[engine] physical device created.");
 
 
     // 创建 logical device
     _device = new Device(*_physical_device);
-    spdlog::info("[engine] device created.");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(device().vkdevice());
 
     // 内存分配工具
@@ -119,24 +116,22 @@ void Hiss::Engine::preupdate() noexcept
 }
 
 
-void Hiss::Engine::postupdate() noexcept
-{
-    _frame_manager->next_frame();
-}
+void Hiss::Engine::postupdate() noexcept {}
 
 
 Hiss::Image2D* Hiss::Engine::create_depth_attach(vk::SampleCountFlagBits sample) const
 {
-    return new Hiss::Image2D(allocator, *_device,
-                             Hiss::Image2D::Info{
-                                     .format       = depth_format(),
-                                     .extent       = extent(),
-                                     .usage        = vk::ImageUsageFlagBits::eDepthStencilAttachment,
-                                     .samples      = sample,
-                                     .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                                     .aspect       = vk::ImageAspectFlagBits::eDepth,
-                                     .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
-                             });
+    return new Hiss::Image2D(
+            allocator, *_device,
+            Hiss::Image2DCreateInfo{
+                    .format       = depth_format(),
+                    .extent       = extent(),
+                    .usage        = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+                    .samples      = sample,
+                    .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
+                    .aspect       = vk::ImageAspectFlagBits::eDepth,
+                    .init_layout  = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+            });
 }
 
 
@@ -183,7 +178,7 @@ void Hiss::Engine::color_attach_layout_trans_2(vk::CommandBuffer command_buffer,
 Hiss::Image2D* Hiss::Engine::create_color_attach(vk::SampleCountFlagBits sample) const
 {
     return new Hiss::Image2D(allocator, *_device,
-                             Hiss::Image2D::Info{
+                             Hiss::Image2DCreateInfo{
                                      .format       = color_format(),
                                      .extent       = extent(),
                                      .usage        = vk::ImageUsageFlagBits::eColorAttachment,
@@ -217,13 +212,20 @@ vk::Rect2D Hiss::Engine::scissor() const
 }
 
 
-vk::DescriptorSet Hiss::Engine::create_descriptor_set(vk::DescriptorSetLayout layout)
+vk::DescriptorSet Hiss::Engine::create_descriptor_set(vk::DescriptorSetLayout layout, const std::string& debug_name)
 {
-    return _device->vkdevice()
-            .allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
-                    .descriptorPool     = descriptor_pool._value,
-                    .descriptorSetCount = 1,
-                    .pSetLayouts        = &layout,
-            })
-            .front();
+    auto descriptor_set = _device->vkdevice()
+                                  .allocateDescriptorSets(vk::DescriptorSetAllocateInfo{
+                                          .descriptorPool     = descriptor_pool._value,
+                                          .descriptorSetCount = 1,
+                                          .pSetLayouts        = &layout,
+                                  })
+                                  .front();
+
+    if (!debug_name.empty())
+    {
+        _device->set_debug_name(vk::ObjectType::eDescriptorSet, (VkDescriptorSet) descriptor_set, debug_name);
+    }
+
+    return descriptor_set;
 }

@@ -66,7 +66,7 @@ inline vk::DescriptorSetLayout descriptor_set_layout(vk::Device device, const st
 }
 
 
-inline vk::RenderingAttachmentInfo depth_attach_info(vk::ImageView view)
+inline vk::RenderingAttachmentInfo depth_attach_info(vk::ImageView view = VK_NULL_HANDLE)
 {
     return vk::RenderingAttachmentInfo{
             .imageView   = view,
@@ -117,6 +117,17 @@ inline vk::RenderingInfo render_info(vk::RenderingAttachmentInfo& color_attach,
 }
 
 
+inline vk::RenderingInfo render_info(vk::RenderingAttachmentInfo& depth_attach, const vk::Extent2D& extent,
+                                     const vk::Offset2D& offset = {0, 0})
+{
+    return vk::RenderingInfo{
+            .renderArea       = {.offset = offset, .extent = extent},
+            .layerCount       = 1,
+            .pDepthAttachment = &depth_attach,
+    };
+}
+
+
 inline vk::DescriptorSetLayout descriptor_set_layout(vk::Device                                   device,
                                                      std::vector<vk::DescriptorSetLayoutBinding>& bindings)
 {
@@ -129,14 +140,17 @@ inline vk::DescriptorSetLayout descriptor_set_layout(vk::Device                 
 
 struct DescriptorWrite
 {
-    vk::DescriptorType type;
-    union
-    {
-        Hiss::Texture* tex;
-        Hiss::Buffer2* buffer;
-    } ptr;
+    vk::DescriptorType type{};
+    Hiss::Buffer*      buffer{};
+    Hiss::Image2D*     image{};
+    vk::Sampler        sampler;
 };
 
+
+/**
+ * 绑定 descriptor set 与 buffer
+ * @details 支持的类型有：storage buffer，uniform buffer，combined sampler image，storage image
+ */
 inline void descriptor_set_write(vk::Device device, vk::DescriptorSet descriptor_set,
                                  const std::vector<DescriptorWrite>& writes)
 {
@@ -157,13 +171,14 @@ inline void descriptor_set_write(vk::Device device, vk::DescriptorSet descriptor
                 .descriptorType  = type,
         };
 
+
         // descriptor 是 uniform 或者 storage buffer
         if (type == vk::DescriptorType::eUniformBuffer || type == vk::DescriptorType::eStorageBuffer)
         {
             auto p_buffer_info = new vk::DescriptorBufferInfo{
-                    .buffer = writes[i].ptr.buffer->vkbuffer(),
+                    .buffer = writes[i].buffer->vkbuffer(),
                     .offset = 0,
-                    .range  = writes[i].ptr.buffer->size(),
+                    .range  = writes[i].buffer->size(),
             };
             buffer_infos.push_back(p_buffer_info);
             write_set.pBufferInfo = p_buffer_info;
@@ -173,20 +188,33 @@ inline void descriptor_set_write(vk::Device device, vk::DescriptorSet descriptor
         else if (type == vk::DescriptorType::eCombinedImageSampler)
         {
             auto p_image_info = new vk::DescriptorImageInfo{
-                    .sampler     = writes[i].ptr.tex->sampler(),
-                    .imageView   = writes[i].ptr.tex->image().vkview(),
+                    .sampler     = writes[i].sampler,
+                    .imageView   = writes[i].image->vkview(),
                     .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
             };
             image_infos.push_back(p_image_info);
             write_set.pImageInfo = p_image_info;
         }
+
+        // 是 storage image
+        else if (type == vk::DescriptorType::eStorageImage)
+        {
+            auto p_image_info = new vk::DescriptorImageInfo{
+                    .imageView   = writes[i].image->vkview(),
+                    .imageLayout = vk::ImageLayout::eGeneral,
+            };
+            image_infos.push_back(p_image_info);
+            write_set.pImageInfo = p_image_info;
+        }
+
+        // 没有匹配上
         else
             throw std::runtime_error("unsupported descriptor type: " + to_string(type));
 
         vk_writes[i] = write_set;
     }
 
-    // 实际写入绑定
+    // 进行绑定
     device.updateDescriptorSets(vk_writes, {});
 
 
@@ -198,12 +226,64 @@ inline void descriptor_set_write(vk::Device device, vk::DescriptorSet descriptor
 }
 
 
-// TODO 和 push constant 一起来
-//inline vk::PipelineLayout pipeline_layout(vk::Device device, const std::vector<vk::DescriptorSetLayout> & descriptor_set_layouts)
-//{
-//    return device.createPipelineLayout(vk::PipelineLayoutCreateInfo{
-//        .
-//    });
-//}
+inline vk::PipelineLayout pipeline_layout(vk::Device                                  device,
+                                          const std::vector<vk::DescriptorSetLayout>& descriptor_set_layouts,
+                                          const std::vector<vk::PushConstantRange>&   push_constants = {})
+{
+    return device.createPipelineLayout(vk::PipelineLayoutCreateInfo{
+            .setLayoutCount         = (uint32_t) descriptor_set_layouts.size(),
+            .pSetLayouts            = descriptor_set_layouts.data(),
+            .pushConstantRangeCount = (uint32_t) push_constants.size(),
+            .pPushConstantRanges    = push_constants.data(),
+    });
+}
+
+
+inline vk::Pipeline compute_pipeline(vk::Device device, vk::PipelineLayout layout,
+                                     const vk::PipelineShaderStageCreateInfo& shader_stage)
+{
+    vk::Result   result;
+    vk::Pipeline pipeline;
+    std::tie(result, pipeline) = device.createComputePipeline(nullptr, vk::ComputePipelineCreateInfo{
+                                                                               .stage  = shader_stage,
+                                                                               .layout = layout,
+                                                                       });
+    vk::resultCheck(result, "compute pipeline create.");
+    return pipeline;
+}
+
+
+/**
+ * 创建一个比较通用的：linear，mirrored repeat，无 mipmap
+ */
+inline vk::Sampler sampler(const Hiss::Device& device)
+{
+    return device.vkdevice().createSampler(vk::SamplerCreateInfo{
+            .magFilter  = vk::Filter::eLinear,
+            .minFilter  = vk::Filter::eLinear,
+            .mipmapMode = vk::SamplerMipmapMode::eLinear,
+
+            // 纹理坐标超出 [0, 1) 后，如何处理
+            .addressModeU = vk::SamplerAddressMode::eMirroredRepeat,
+            .addressModeV = vk::SamplerAddressMode::eMirroredRepeat,
+            .addressModeW = vk::SamplerAddressMode::eMirroredRepeat,
+
+            .mipLodBias = 0.f,
+
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy    = device.gpu().properties().limits.maxSamplerAnisotropy,
+
+            // 在 PCF shadow map 中会用到
+            .compareEnable = VK_FALSE,
+            .compareOp     = vk::CompareOp::eAlways,
+
+            // 用于 clamp LOD 级别的
+            .minLod = 0.f,
+            .maxLod = static_cast<float>(1),
+
+            .borderColor             = vk::BorderColor::eIntOpaqueBlack,
+            .unnormalizedCoordinates = VK_FALSE,
+    });
+}
 
 }    // namespace Hiss::Initial

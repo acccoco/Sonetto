@@ -1,23 +1,20 @@
+# 关于参数解析
+# cmake 的函数会将参数放在 ARGN 变量中，可以使用 cmake_parse_arguments 函数来提取参数
 
 
 # compile shader
+# target 名称为 ${TARGET_NAME}.shader
 function(compile_shader)
-    # 设置参数
     set(options)
-    set(oneValueArgs TARGET_NAME SHADER_DIR)
-    set(multiValueArgs SHADER_NAMES)
-
-    # 解析参数
+    set(oneValueArgs
+            TARGET_NAME
+            SHADER_DIR  # 着色器所在的文件夹
+            )
+    set(multiValueArgs
+            SHADER_NAMES)
     cmake_parse_arguments(THIS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    # 检查参数
-    if (NOT THIS_TARGET_NAME
-            OR NOT THIS_SHADER_DIR)
-        message(FATAL_ERROR "params error")
-    endif ()
 
-
-    # 实际的代码
     set(SPV_FILES)
     set(SHADER_FILES)
     foreach (SHADER_NAME ${THIS_SHADER_NAMES})
@@ -28,42 +25,37 @@ function(compile_shader)
 
         add_custom_command(
                 OUTPUT ${SPV_FILE}
-                COMMAND glslc ${SHADER_FILE} -o ${SPV_FILE}
-                # 这里默认监测 shader include 文件夹
-                DEPENDS ${SHADER_FILE} ${PROJ_SHADER_DIR}/include
+                COMMAND glslc -g --target-env=vulkan1.1 --target-spv=spv1.3 ${SHADER_FILE} -o ${SPV_FILE}
+                DEPENDS ${SHADER_FILE}
+                # 根据文件中的 #include 来推断依赖关系，目前只支持 makefile
+                IMPLICIT_DEPENDS CXX ${SHADER_FILE}
                 VERBATIM
         )
     endforeach ()
 
 
-    add_custom_target(${THIS_TARGET_NAME}
+    add_custom_target(${THIS_TARGET_NAME}.shader
             DEPENDS ${SPV_FILES}
             SOURCES ${SHADER_FILES}     # 让 IDE 的 source file 界面有这些文件
             )
 endfunction()
 
 
+# 为 example 生成 target
 function(add_sample)
     set(options)
     set(oneValueArgs
             TARGET_NAME
-            SHADER_DIR)
+            )
     set(multiValueArgs
             SOURCES
-            SHADER_NAMES)
+            )
     cmake_parse_arguments(THIS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-    if (NOT THIS_TARGET_NAME
-            OR NOT THIS_SHADER_DIR
-            OR NOT THIS_SOURCES)
-        message(FATAL_ERROR "params error")
-    endif ()
 
-    compile_shader(
-            TARGET_NAME ${THIS_TARGET_NAME}.shader
-            SHADER_DIR ${THIS_SHADER_DIR}
-            SHADER_NAMES ${THIS_SHADER_NAMES}
-    )
+
     add_executable(${THIS_TARGET_NAME} ${THIS_SOURCES})
     add_dependencies(${THIS_TARGET_NAME} ${THIS_TARGET_NAME}.shader)
     target_link_libraries(${THIS_TARGET_NAME} ${PROJ_FRAMEWORK})
+    # 可以直接引用 shader 文件
+    target_include_directories(${THIS_TARGET_NAME} PRIVATE ${PROJ_SHADER_DIR})
 endfunction()

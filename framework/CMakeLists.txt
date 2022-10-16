@@ -14,6 +14,7 @@ find_package(glfw3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(assimp REQUIRED)
 find_package(TinyGLTF REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/tinyGLTF)
 find_package(TinyObjLoader REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/tinyobj)
 find_package(vma REQUIRED HINTS ${CMAKE_SOURCE_DIR}/third_party/vma)
@@ -23,6 +24,7 @@ set(LIBS
         fmt::fmt
         Vulkan::Vulkan
         spdlog::spdlog
+        ${ASSIMP_LIBRARIES}
         TinyGLTF
         TinyObjLoader
         vma
@@ -60,7 +62,7 @@ set(HEADER_FILES
         func/vertex.hpp
         func/pipeline_template.hpp
         func/vertex_buffer.hpp
-        func/vk_func.hpp)
+        func/vk_func.hpp core/frame_manager.hpp)
 
 # source files
 set(SOURCE_FILES
@@ -79,7 +81,7 @@ set(SOURCE_FILES
         func/texture.cpp
         func/pipeline_template.cpp
         func/model.cpp
-        )
+        run.cpp)
 
 
 # static library

@@ -1,0 +1,11 @@
+
+/**
+ * 当前 workgroup 在所有 workgroup 中的 id，先行后列
+ */
+uint group_index()
+{
+    uint id = gl_WorkGroupID.x;
+    id += gl_WorkGroupID.y * gl_NumWorkGroups.x;
+    id += gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
+    return id;
+}

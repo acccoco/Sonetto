@@ -47,7 +47,7 @@ public:
         surface = new Surface(engine);
         surface->prepare();
 
-        Hiss::Buffer2* storage_buffer;
+        Hiss::Buffer* storage_buffer;
         uint32_t       num_particles;
         if (USE_SURFACE)
         {
@@ -70,15 +70,15 @@ public:
 
     void update() noexcept override
     {
-
         engine.frame_manager().acquire_frame();
-        graphics->update();
-        engine.frame_manager().submit_frame();
 
         if (USE_SURFACE)
             surface->update();
         else
             nbody->update();
+
+        graphics->update();
+        engine.frame_manager().submit_frame();
     }
 
 

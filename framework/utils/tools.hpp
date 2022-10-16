@@ -11,6 +11,12 @@
 
 
 /**
+ * 整数 round 除法
+ */
+#define ROUND(a, b) (((a) + (b) -1) / (b))
+
+
+/**
  * 释放指针内存，并将指针置为空
  */
 #define DELETE(ptr)                                                                                                    \

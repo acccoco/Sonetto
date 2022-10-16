@@ -32,7 +32,7 @@ struct Queue
 
     // 提交命令执行
     void submit_commands(const std::vector<StageSemaphore>& dst, const std::vector<vk::CommandBuffer>& command_buffers,
-                const std::vector<vk::Semaphore>& signal_semaphores, vk::Fence fence = VK_NULL_HANDLE)
+                         const std::vector<vk::Semaphore>& signal_semaphores = {}, vk::Fence fence = VK_NULL_HANDLE)
     {
         std::vector<vk::PipelineStageFlags> stages(dst.size());
         std::vector<vk::Semaphore>          wait_semaphores(dst.size());

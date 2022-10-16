@@ -12,14 +12,15 @@ class Texture
 public:
     /**
      * 会将所有 level 都设为 shader read only layout
+     * @details 不支持 mipmap
      */
-    Texture(Device& device, VmaAllocator allocator, std::string tex_path, vk::Format format, bool mipmap = false);
+    Texture(Device& device, VmaAllocator allocator, std::string tex_path, vk::Format format);
     ~Texture();
 
 
 private:
-    void create_image(bool mipmap, vk::Format format);
-    void create_sampler();
+    void _create_image(vk::Format format);
+    void _create_sampler();
 
     // members =======================================================
 

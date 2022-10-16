@@ -62,8 +62,8 @@ public:
 
     UBO ubo = {};
 
-    Hiss::Engine&  engine;
-    Hiss::Buffer2* storage_buffer = nullptr;
+    Hiss::Engine& engine;
+    Hiss::Buffer* storage_buffer = nullptr;
 
     // 粒子相关的变量
     const uint32_t        PARTICLES_PER_ATTRACTOR = 4 * 1024;
@@ -102,7 +102,7 @@ public:
 
 
         // 初始化每一帧需要用到的数据
-        payloads = {engine.frame_manager().frames().size(), Payload()};
+        payloads = {engine.frame_manager().frames_number(), Payload()};
         for (int i = 0; i < payloads.size(); ++i)
         {
             auto& payload = payloads[i];
@@ -174,8 +174,8 @@ private:
         /* init uniform buffers */
         for (auto& payload: payloads)
         {
-            payload.uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(ubo));
-            payload.uniform_buffer->memory_copy(&ubo, sizeof(ubo));
+            payload.uniform_buffer = new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(ubo), "");
+            payload.uniform_buffer->mem_copy(&ubo, sizeof(ubo));
         }
     }
 
@@ -351,7 +351,7 @@ private:
     {
         ubo.delta_time = delta_time;
 
-        buffer.memory_copy(&ubo, sizeof(ubo));
+        buffer.mem_copy(&ubo, sizeof(ubo));
     }
 
 
@@ -425,12 +425,11 @@ private:
         /* create storage buffer */
         vk::DeviceSize storage_buffer_size = particles.size() * sizeof(Particle);
 
-        storage_buffer =
-                new Hiss::Buffer2(engine.allocator, storage_buffer_size,
-                                  vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst
-                                          | vk::BufferUsageFlagBits::eStorageBuffer,
-                                  VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
-        auto stage_buffer = Hiss::StageBuffer(engine.allocator, storage_buffer_size);
+        storage_buffer    = new Hiss::Buffer(engine.device(), engine.allocator, storage_buffer_size,
+                                             vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst
+                                                     | vk::BufferUsageFlagBits::eStorageBuffer,
+                                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "");
+        auto stage_buffer = Hiss::StageBuffer(engine.device(), engine.allocator, storage_buffer_size, "");
         stage_buffer.mem_copy(particles.data(), storage_buffer_size);
 
 

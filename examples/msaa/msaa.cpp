@@ -11,7 +11,8 @@ void MSAA::App::prepare()
     payloads.resize(engine.frame_manager().frames_number());
     for (auto& payload: payloads)
     {
-        payload.uniform_buffer = new Hiss::UniformBuffer(engine.allocator, sizeof(MSAA::UniformBlock));
+        payload.uniform_buffer =
+                new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(MSAA::UniformBlock), "");
         payload.command_buffer = engine.device().command_pool().command_buffer_create().front();
     }
 
@@ -51,8 +52,8 @@ void MSAA::App::prepare_pipeline()
     auto _pipeline_state = Hiss::PipelineTemplate{
             .shader_stages        = {engine.shader_loader().load(vert_shader_path, vk::ShaderStageFlagBits::eVertex),
                                      engine.shader_loader().load(frag_shader_path, vk::ShaderStageFlagBits::eFragment)},
-            .vertex_bindings      = Hiss::Vertex3DColorUv::input_binding_description(0),
-            .vertex_attributes    = Hiss::Vertex3DColorUv::input_attribute_description(0),
+            .vertex_bindings      = Hiss::Vertex3DNormalUV::input_binding_description(0),
+            .vertex_attributes    = Hiss::Vertex3DNormalUV::input_attribute_description(0),
             .color_attach_formats = {engine.color_format()},
             .depth_attach_format  = engine.depth_format(),
             .pipeline_layout      = pipeline_layout,
@@ -75,8 +76,7 @@ void MSAA::App::update() noexcept
     record_command(payload.command_buffer, payload, frame);
 
     // 绘制
-    engine.queue().submit_commands({{vk::PipelineStageFlagBits::eColorAttachmentOutput, frame.acquire_semaphore()}},
-                                   {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
+    engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
 
     engine.frame_manager().submit_frame();
 }
@@ -89,7 +89,7 @@ void MSAA::App::prepare_descriptor_set()
 
     /* descriptor set create */
     for (auto& payload: payloads)
-        payload.descriptor_set = engine.create_descriptor_set(descriptor_layout);
+        payload.descriptor_set = engine.create_descriptor_set(descriptor_layout, "");
 
 
     /* bind uniform buffer and descriptor set */
@@ -98,8 +98,10 @@ void MSAA::App::prepare_descriptor_set()
         Hiss::Initial::descriptor_set_write(
                 engine.vkdevice(), payload.descriptor_set,
                 {
-                        {vk::DescriptorType::eUniformBuffer, {.buffer = payload.uniform_buffer}},    // 1
-                        {vk::DescriptorType::eCombinedImageSampler, {.tex = &tex}},                  // 2
+                        {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.uniform_buffer},    // 1
+                        {.type    = vk::DescriptorType::eCombinedImageSampler,
+                         .image   = &tex.image(),
+                         .sampler = tex.sampler()},    // 2
                 });
     }
 }
@@ -136,12 +138,18 @@ void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Pay
         command_buffer.setViewport(0, engine.viewport());
         command_buffer.setScissor(0, engine.scissor());
 
-        command_buffer.bindVertexBuffers(0, {mesh.vertex_buffer().vkbuffer()}, {0});
-        command_buffer.bindIndexBuffer(mesh.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
         command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0,
                                           {payload.descriptor_set}, {});
 
+        // 绘制房子
+        command_buffer.bindVertexBuffers(0, {mesh.vertex_buffer().vkbuffer()}, {0});
+        command_buffer.bindIndexBuffer(mesh.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
         command_buffer.drawIndexed(static_cast<uint32_t>(mesh.index_buffer().index_num), 1, 0, 0, 0);
+
+        // 绘制立方体
+//        command_buffer.bindVertexBuffers(0, {mesh2_cube.vertex_buffer().vkbuffer()}, {0});
+//        command_buffer.bindIndexBuffer(mesh2_cube.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
+//        command_buffer.drawIndexed(static_cast<uint32_t>(mesh2_cube.index_buffer().index_num), 1, 0, 0, 0);
     }
     command_buffer.endRendering();
 
@@ -169,5 +177,5 @@ void MSAA::App::update_uniform(Hiss::UniformBuffer& uniform_buffer)
     };
 
 
-    uniform_buffer.memory_copy(&ubo, sizeof(ubo));
+    uniform_buffer.mem_copy(&ubo, sizeof(ubo));
 }

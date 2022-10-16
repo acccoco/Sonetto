@@ -5,12 +5,13 @@
 namespace Hiss
 {
 
-class Buffer2
+class Buffer
 {
 public:
-    Buffer2(VmaAllocator allocator, vk::DeviceSize size, vk::BufferUsageFlags buffer_usage,
-            VmaAllocationCreateFlags memory_flags)
+    Buffer(const Hiss::Device& device, VmaAllocator allocator, vk::DeviceSize size, vk::BufferUsageFlags buffer_usage,
+           VmaAllocationCreateFlags memory_flags, const std::string& name)
         : size(size),
+          name(name),
           _allocator(allocator)
     {
         assert(size > 0);
@@ -27,12 +28,16 @@ public:
         };
         vmaCreateBuffer(allocator, &indices_buffer_info, &indices_alloc_create_info, &vkbuffer._value, &_allocation,
                         &_alloc_info);
+
+        device.set_debug_name(vk::ObjectType::eBuffer, vkbuffer._value, this->name);
     }
 
-    ~Buffer2() { vmaDestroyBuffer(_allocator, vkbuffer._value, _allocation); }
+    ~Buffer() { vmaDestroyBuffer(_allocator, vkbuffer._value, _allocation); }
 
 
-    // 在 command buffer 中插入关于当前 buffer 的内存屏障
+    /**
+     * 在 command buffer 中插入关于当前 buffer 的内存屏障
+     */
     void memory_barrier(vk::CommandBuffer& command_buffer, const StageAccess& src, const StageAccess& dst)
     {
         command_buffer.pipelineBarrier(src.stage, dst.stage, {}, {},
@@ -47,64 +52,60 @@ public:
     }
 
 
-#pragma region public properties
+    /**
+     * 将内存拷贝到 stage buffer 中
+     * @details 需要由 application 确保 buffer 是可以 map 的
+     */
+    void mem_copy(const void* src, vk::DeviceSize src_size) const
+    {
+        assert(this->size() >= src_size);
+
+        std::memcpy(_alloc_info.pMappedData, src, src_size);
+    }
+
+
 public:
-    Prop<VkBuffer, Buffer2>       vkbuffer{};
-    Prop<vk::DeviceSize, Buffer2> size;
+    Prop<VkBuffer, Buffer>       vkbuffer{};
+    Prop<vk::DeviceSize, Buffer> size;
+    std::string                  name;
 
-#pragma endregion
 
-
-#pragma region private members
 protected:
     VmaAllocator      _allocator;
     VmaAllocation     _allocation{};    // 对应 memory
     VmaAllocationInfo _alloc_info{};    // 分配信息，例如内存映射的地址
-
-#pragma endregion
 };
-
 
 
 // 用于从 CPU 到 GPU 传递数据的 buffer
-class StageBuffer : public Buffer2
+class StageBuffer : public Buffer
 {
 public:
     // memory flags: HOST_VISIBLE, 自动 mapped
-    StageBuffer(VmaAllocator allocator, vk::DeviceSize size)
-        : Buffer2(allocator, size, vk::BufferUsageFlagBits::eTransferSrc,
-                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT)
+    StageBuffer(const Hiss::Device& device, VmaAllocator allocator, vk::DeviceSize size, const std::string& name)
+        : Buffer(device, allocator, size, vk::BufferUsageFlagBits::eTransferSrc,
+                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT, name)
     {}
-
-
-    // 将内存拷贝到 stage buffer 中
-    void mem_copy(const void* src, vk::DeviceSize size) const
-    {
-        assert(this->size() >= size);
-
-        std::memcpy(_alloc_info.pMappedData, src, size);
-    }
 };
 
 
-class UniformBuffer : public Buffer2
+class UniformBuffer : public Buffer
 {
 public:
-    // memory flags: HOST_VISIBLE, DEVICE_LOCAL, 自动 mapped
-    UniformBuffer(VmaAllocator allocator, vk::DeviceSize size)
-        : Buffer2(allocator, size, vk::BufferUsageFlagBits::eUniformBuffer,
-                  VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
-                          | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT
-                          | VMA_ALLOCATION_CREATE_MAPPED_BIT)
-    {}
-
-
-    // 向 uniform buffer 中拷贝数据
-    void memory_copy(const void* src, vk::DeviceSize size)
+    /**
+     * memory flags: HOST_VISIBLE, DEVICE_LOCAL, 自动 mapped
+     * @param data  可以使用这些内存进行初始化
+     */
+    UniformBuffer(const Hiss::Device& device, VmaAllocator allocator, vk::DeviceSize size, const std::string& name = "",
+                  const void* data = nullptr)
+        : Buffer(device, allocator, size, vk::BufferUsageFlagBits::eUniformBuffer,
+                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT
+                         | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT
+                         | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                 name)
     {
-        assert(this->size() >= size);
-
-        std::memcpy(_alloc_info.pMappedData, src, size);
+        if (data)
+            mem_copy(data, this->size());
     }
 };
 

@@ -10,18 +10,6 @@ namespace Hiss
 const uint32_t APP_VK_VERSION = VK_API_VERSION_1_1;
 
 
-class FrameManager;
-const struct
-{
-public:
-    friend class Hiss::FrameManager;
-
-private:
-    // 这个参数只对 FrameManager 可见
-    const uint32_t frames_number = 3;
-} config;
-
-
 // instance 需要的 layers
 inline std::vector<const char*> get_layers()
 {
@@ -68,7 +56,6 @@ inline std::vector<const char*> get_instance_extensions()
             VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,    // 基于 metal API 的 vulkan 实现需要这些扩展
     };
 
-    // NOTE 确保 GLFW 已经初始化了
     auto glfw_extensions = get_instance_extensions_glfw();
     extensions.insert(extensions.end(), glfw_extensions.begin(), glfw_extensions.end());
 
@@ -136,9 +123,8 @@ static vk::Bool32 validation_debug_callback(VkDebugUtilsMessageSeverityFlagBitsE
 
 // validation debug log 的级别
 const vk::DebugUtilsMessengerCreateInfoEXT _debug_utils_messenger_info = {
-        .messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose
-                         | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning
-                         | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+        .messageSeverity =
+                vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
         .messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral
                      | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance
                      | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,
@@ -154,6 +140,7 @@ const std::vector<vk::DescriptorPoolSize> pool_size                 = {
         {vk::DescriptorType::eUniformBuffer, 64},
         {vk::DescriptorType::eStorageBuffer, 64},
         {vk::DescriptorType::eCombinedImageSampler, 64},
+        {vk::DescriptorType::eStorageImage, 64},
 };
 
 }    // namespace Hiss

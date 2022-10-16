@@ -1,58 +1,113 @@
 #version 450
-#extension GL_GOOGLE_include_directive: enable
-#include "./common.glsl"
-#include "../include/light.glsl"
+#extension GL_GOOGLE_include_directive : enable
+#include "type.glsl"
+#include "../shader/common.glsl"
+#include "../shader/light.glsl"
 
 
-layout (set = 0, binding = 0) uniform sampler2D u_depth_texture;
-layout (std430, set = 0, binding = 1) buffer _1
+// 当前 pass，用于调试的数据
+struct DebugData
 {
-    Frustum b_frustums[];   // 每个 tile 都有自己的 frustum
+    float min_depth;
+    float max_depth;
+    float min_depth_vs;
+    float max_depth_vs;
+    uint  light_index_offset;
+    uint  light_index_count;
 };
-layout (std430, set = 0, binding = 2) buffer _2
+
+
+// descriptor set
+// ===================================================================
+layout(set = 0, binding = 0) uniform sampler2D u_depth_texture;
+// 每个 tile 对应的 light list 的 offset 和 count
+layout(set = 0, binding = 1, rg32ui) uniform uimage2D u_light_grid;
+layout(std140, set = 0, binding = 2) uniform _2
 {
-    uint b_light_index_counter;    // 全局的原子计数器
-    uint b_light_num;
+    Scene u_scene;
+};
+layout(std430, set = 0, binding = 3) buffer _3
+{
+    Frustum b_frustums[];    // 每个 tile 都有自己的 frustum
+};
+layout(std430, set = 0, binding = 4) readonly buffer _4
+{
     Light b_lights[];
 };
-layout (std430, set = 0, binding = 3) buffer _3
+layout(std430, set = 0, binding = 5) writeonly buffer _5
 {
     uint b_light_index_list[];    // 全局的 light list
 };
-layout (std430, set = 0, binding = 4) buffer _4
+layout(std430, set = 0, binding = 6) buffer _6
 {
-    uvec2 b_light_grid[];    // 每个 tile 对应的 light list 的 offset 和 count
+    uint b_light_index_counter;    // 全局的原子计数器
 };
-layout (std140, set = 0, binding = 5) uniform _5
+layout(set = 0, binding = 7, std430) buffer _7
 {
-    uvec2 u_screen_dimension;
-    float u_near;    // view space 中近平面的距离，正数
-    float u_far;
+    DebugData b_debug_data[];
 };
-
 
 // ===================================================================
-shared uint s_tile_min_depth;    // tile 内的最小深度值
-shared uint s_tile_max_depth;
+
+
+// workgroup shared 变量
+// ===================================================================
+shared uint    s_tile_min_depth;    // tile 内的最小深度值
+shared uint    s_tile_max_depth;
 shared Frustum s_tile_frustum;    // tile 对应的 view space 中的 frustum
-shared uint s_local_light_count;     // workgroup 内的计数器
-shared uint s_light_index_offset;
-shared uint s_local_light_list[LOCAL_LIGHT_COUNT];    // tile 内的 light list
+shared uint    s_light_index_offset;
+shared uint    s_local_light_list[LOCAL_LIGHT_COUNT];    // tile 内的 light list
+shared uint    s_local_light_count;                      // workgroup 内的计数器
 // ===================================================================
 
 
-layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 
 /* 将全局的某个光源存入 workgroup shared 的光源列表中 */
-void append_list(uint light_index)
+// void append_list(uint light_index)
+// {
+//     uint old_count;
+//     old_count = atomicAdd(s_local_light_count, 1u);
+//     if (old_count < LOCAL_LIGHT_COUNT)
+//     {
+//         s_local_light_list[old_count] = light_index;
+//     }
+// }
+
+
+/**
+ * 球是否完全在平面的背面
+ */
+bool sphere_behind_plane(Sphere sphere, Plane plane)
 {
-    uint old_index;
-    old_index = atomicAdd(s_local_light_count, 1u);
-    if (old_index < LOCAL_LIGHT_COUNT)
+    return plane.d - dot(plane.N, sphere.c) > sphere.r;
+}
+
+
+/**
+ * 球是否与 frustum 相交
+ * 如果球完全位于 frustum 某个面的背面，那么就没有相交
+ * frustum 的面朝向内部
+ * @param near, far 是正数
+ */
+bool sphere_inter_frustum(Sphere sphere, Frustum frustum, float near, float far)
+{
+    bool res = true;
+
+    // view space 中，摄像机朝向 -z，因此物体的 z 坐标都是 负数
+    if (sphere.c.z - sphere.r > -near || sphere.c.z + sphere.r < -far)
     {
-        s_local_light_list[old_index] = light_index;
+        res = false;
     }
+
+    if (sphere_behind_plane(sphere, frustum.left) || sphere_behind_plane(sphere, frustum.right)
+        || sphere_behind_plane(sphere, frustum.top) || sphere_behind_plane(sphere, frustum.bottom))
+    {
+        res = false;
+    }
+
+    return res;
 }
 
 
@@ -62,19 +117,19 @@ void main()
     uint group_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
 
     // 当前像素的坐标，采样位置应该是像素中心
-    vec2 tex_coord = (gl_GlobalInvocationID.xy + 0.5) / u_screen_dimension;
+    vec2 tex_coord = (gl_GlobalInvocationID.xy + 0.5) / vec2(u_scene.screen_width, u_scene.screen_height);
 
     // 当前 thread 对应像素的深度值
     float depth_float = texture(u_depth_texture, tex_coord).x;
-    uint depth_uint = floatBitsToUint(depth_float);
+    uint  depth_uint  = floatBitsToUint(depth_float);    // uint 格式的 depth，用于 atomic OP
 
     // 让 thread 0 来初始化 shared 变量
     if (gl_LocalInvocationIndex == 0)
     {
-        s_tile_min_depth = 0xffffffffu;
-        s_tile_max_depth = 0u;
+        s_tile_min_depth    = 0xffffffffu;
+        s_tile_max_depth    = 0u;
         s_local_light_count = 0u;
-        s_tile_frustum = b_frustums[group_index];
+        s_tile_frustum      = b_frustums[group_index];
     }
     barrier();
 
@@ -83,16 +138,18 @@ void main()
     atomicMin(s_tile_min_depth, depth_uint);
     atomicMax(s_tile_max_depth, depth_uint);
     barrier();
-    float min_depth = uintBitsToFloat(s_tile_min_depth);
-    float max_depth = uintBitsToFloat(s_tile_max_depth);
-    float min_depth_vs = depth_to_view_z(min_depth, u_near, u_far);
-    float max_depth_vs = depth_to_view_z(max_depth, u_near, u_far);
+    float min_depth    = uintBitsToFloat(s_tile_min_depth);
+    float max_depth    = uintBitsToFloat(s_tile_max_depth);
+    float min_depth_vs = depth_to_view_z(min_depth, u_scene.near, u_scene.far);
+    float max_depth_vs = depth_to_view_z(max_depth, u_scene.near, u_scene.far);
 
 
     // 遍历每个光源，判断是否相交
-    for (uint i = gl_LocalInvocationIndex; i < b_light_num; i += TILE_SIZE * TILE_SIZE)
+    // Frustum frust = b_frustums[group_index];
+    for (uint i = gl_LocalInvocationIndex; i < u_scene.light_num; i += TILE_SIZE * TILE_SIZE)
     {
         Light light = b_lights[i];
+        uint  old_count;
         switch (light.type)
         {
             case POINT_LIGHT:
@@ -101,21 +158,48 @@ void main()
                 sphere.r = light.range;
                 if (sphere_inter_frustum(sphere, s_tile_frustum, -min_depth_vs, -max_depth_vs))
                 {
-                    append_list(i);
+                    // 将光源加入 workgroup 的 light list
+                    old_count = atomicAdd(s_local_light_count, 1u);
+                    if (old_count < LOCAL_LIGHT_COUNT)
+                    {
+                        s_local_light_list[old_count] = i;
+                    }
+                    // append_list(i);
                 }
                 break;
-            case DIRECTIONAL_LIGHT:    // 方向光，不用剔除
-                append_list(i);
-                break;
+                // 暂不支持其他光源
         }
     }
     barrier();
 
+
     // 由 thread 0 负责分配空间
     if (gl_LocalInvocationIndex == 0)
     {
+        // 限制 local light size
+        // if (s_local_light_count > LOCAL_LIGHT_COUNT)
+        //     ;    //s_local_light_count = LOCAL_LIGHT_COUNT;
+
         s_light_index_offset = atomicAdd(b_light_index_counter, s_local_light_count);
-        b_light_grid[group_index] = uvec2(s_light_index_offset, s_local_light_count);
+        imageStore(u_light_grid, ivec2(gl_WorkGroupID.xy), uvec4(s_light_index_offset, s_local_light_count, 0, 0));
+    }
+    barrier();
+
+    // 写入 debug 数据
+    if (gl_LocalInvocationIndex == 0)
+    {
+        uint group_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
+
+        DebugData data;
+
+        data.min_depth          = min_depth;
+        data.max_depth          = max_depth;
+        data.min_depth_vs       = min_depth_vs;
+        data.max_depth_vs       = max_depth_vs;
+        data.light_index_offset = s_light_index_offset;
+        data.light_index_count  = s_local_light_count;
+
+        b_debug_data[group_index] = data;
     }
     barrier();
 

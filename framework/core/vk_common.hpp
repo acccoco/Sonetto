@@ -22,6 +22,14 @@ struct StageSemaphore
 };
 
 
+/**
+ *
+ * @param fov_deg
+ * @param aspect width / height
+ * @param near
+ * @param far
+ * @return
+ */
 inline glm::mat4 perspective(float fov_deg, float aspect, float near, float far)
 {
     auto mat = glm::perspectiveRH_ZO(glm::radians(fov_deg), aspect, near, far);

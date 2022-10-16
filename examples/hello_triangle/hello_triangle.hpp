@@ -13,6 +13,7 @@ namespace Hello
 struct FramePayload
 {
     vk::CommandBuffer command_buffer = VK_NULL_HANDLE;
+    Hiss::Image2D*    depth_buffer   = nullptr;
 };
 
 
@@ -84,13 +85,12 @@ private:
             engine.vkdevice(), {{vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment}});
 
     vk::PipelineLayout _pipeline_layout;
-    vk::DescriptorSet  _descriptor_set = engine.create_descriptor_set(_descriptor_set_layout);
+    vk::DescriptorSet  _descriptor_set = engine.create_descriptor_set(_descriptor_set_layout, "");
 
     Hiss::IndexBuffer2* _index_buffer = new Hiss::IndexBuffer2(engine.device(), engine.allocator, indices);
     Hiss::VertexBuffer2<Hiss::Vertex2DColor>* _vertex_buffer =
             new Hiss::VertexBuffer2(engine.device(), engine.allocator, vertices);
 
-    Hiss::Image2D* _depth_image = engine.create_depth_attach(vk::SampleCountFlagBits::e1);
 
     UniformData          _ubo;
     Hiss::UniformBuffer* _uniform_buffer{};
@@ -106,7 +106,7 @@ private:
 
 
     vk::RenderingAttachmentInfo color_attach_info = Hiss::Initial::color_attach_info();
-    vk::RenderingAttachmentInfo depth_attach_info = Hiss::Initial::depth_attach_info(_depth_image->vkview());
+    vk::RenderingAttachmentInfo depth_attach_info = Hiss::Initial::depth_attach_info(VK_NULL_HANDLE);
 
     vk::RenderingInfo render_info = Hiss::Initial::render_info(color_attach_info, depth_attach_info, engine.extent());
 #pragma endregion

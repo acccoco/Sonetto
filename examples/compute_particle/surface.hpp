@@ -84,7 +84,7 @@ struct Surface
     float surface_duration_time = 0.f;    // 当前曲面持续了多长时间
 
 
-    Hiss::Buffer2* storage_buffer = nullptr;
+    Hiss::Buffer* storage_buffer = nullptr;
 
     std::vector<Payload> payloads;
 
@@ -275,9 +275,9 @@ private:
 
         // 只需要创建出来即可，不需要初始化
         storage_buffer =
-                new Hiss::Buffer2(engine.allocator, size,
-                                  vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
-                                  VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+                new Hiss::Buffer(engine.device(), engine.allocator, size,
+                                 vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer,
+                                 VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "");
     }
 };
 

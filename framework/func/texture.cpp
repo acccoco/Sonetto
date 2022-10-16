@@ -5,17 +5,17 @@
 #include "utils/stbi.hpp"
 
 
-Hiss::Texture::Texture(Device& device, VmaAllocator allocator, std::string tex_path, vk::Format format, bool mipmap)
+Hiss::Texture::Texture(Device& device, VmaAllocator allocator, std::string tex_path, vk::Format format)
     : path(std::move(tex_path)),
       _device(device),
       _allocator(allocator)
 {
-    create_image(mipmap, format);
-    create_sampler();
+    _create_image(format);
+    _create_sampler();
 }
 
 
-void Hiss::Texture::create_image(bool mipmap, vk::Format format)
+void Hiss::Texture::_create_image(vk::Format format)
 {
     // 从 image 文件中读取数据
     Hiss::Stbi_8Bit_RAII tex_data(path._value, STBI_rgb_alpha);
@@ -24,7 +24,7 @@ void Hiss::Texture::create_image(bool mipmap, vk::Format format)
 
     // 将数据写入 stage buffer 中
     vk::DeviceSize    image_size = tex_data.width() * tex_data.height() * 4;
-    Hiss::StageBuffer stage_buffer(_allocator, image_size);
+    Hiss::StageBuffer stage_buffer(_device, _allocator, image_size, "");
     stage_buffer.mem_copy(tex_data.data, static_cast<size_t>(image_size));
 
 
@@ -34,11 +34,10 @@ void Hiss::Texture::create_image(bool mipmap, vk::Format format)
 
     // 创建空的 iamge
     _image = new Image2D(_allocator, _device,
-                         Image2D::Info{
-                                 .format     = format,
-                                 .extent     = {(uint32_t) tex_data.width(), (uint32_t) tex_data.height()},
-                                 .mip_levels = 1,
-                                 .usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
+                         Hiss::Image2DCreateInfo{
+                                 .format = format,
+                                 .extent = {(uint32_t) tex_data.width(), (uint32_t) tex_data.height()},
+                                 .usage  = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst
                                         | vk::ImageUsageFlagBits::eSampled,
                                  .memory_flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
                                  .aspect       = vk::ImageAspectFlagBits::eColor,
@@ -50,22 +49,19 @@ void Hiss::Texture::create_image(bool mipmap, vk::Format format)
     _image->copy_buffer_to_image(stage_buffer.vkbuffer());
 
 
-    // TODO 添加 mipmap 的支持
-    /* generate mipmap */
-
-
     // 最后将 layout 转变为适合 shader 读取的形式
     _image->transfer_layout_im(vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 
 
-void Hiss::Texture::create_sampler()
+void Hiss::Texture::_create_sampler()
 {
     vk::SamplerCreateInfo sampler_info = {
             .magFilter  = vk::Filter::eLinear,
             .minFilter  = vk::Filter::eLinear,
             .mipmapMode = vk::SamplerMipmapMode::eLinear,
 
+            // 纹理坐标超出 [0, 1) 后，如何处理
             .addressModeU = vk::SamplerAddressMode::eMirroredRepeat,
             .addressModeV = vk::SamplerAddressMode::eMirroredRepeat,
             .addressModeW = vk::SamplerAddressMode::eMirroredRepeat,
@@ -79,7 +75,7 @@ void Hiss::Texture::create_sampler()
             .compareEnable = VK_FALSE,
             .compareOp     = vk::CompareOp::eAlways,
 
-            // TODO mipmap 的支持
+            // 用于 clamp LOD 级别的
             .minLod = 0.f,
             .maxLod = static_cast<float>(1),
 

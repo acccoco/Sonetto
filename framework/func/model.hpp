@@ -14,17 +14,17 @@ namespace Hiss
 class Mesh
 {
 public:
-    Mesh(Hiss::Engine& engine, const std::string& mesh_path);
+    Mesh(Hiss::Engine& engine, const std::string& mesh_path, const std::string& name = "");
     ~Mesh();
 
-    Hiss::VertexBuffer2<Hiss::Vertex3DColorUv>& vertex_buffer() { return *_vertex_buffer2; }
-    Hiss::IndexBuffer2&                         index_buffer() { return *_index_buffer2; }
+    Hiss::VertexBuffer2<Hiss::Vertex3DNormalUV>& vertex_buffer() { return *_vertex_buffer2; }
+    Hiss::IndexBuffer2&                          index_buffer() { return *_index_buffer2; }
 
     Prop<std::string, Mesh> mesh_path;
 
 
 private:
-    void tiny_obj_load(std::vector<Hiss::Vertex3DColorUv>&         vertices,
+    void tiny_obj_load(std::vector<Hiss::Vertex3DNormalUV>&        vertices,
                        std::vector<Hiss::IndexBuffer2::element_t>& indices) const;
 
 
@@ -33,8 +33,8 @@ private:
 private:
     Hiss::Engine& engine;
 
-    Hiss::VertexBuffer2<Hiss::Vertex3DColorUv>* _vertex_buffer2;
-    Hiss::IndexBuffer2*                         _index_buffer2;
+    Hiss::VertexBuffer2<Hiss::Vertex3DNormalUV>* _vertex_buffer2;
+    Hiss::IndexBuffer2*                          _index_buffer2;
 };
 
 
