@@ -3,14 +3,14 @@
 
 
 #define TEXTURE_BINDING(SET, OFFSET)                                                                                   \
-    layout(set = SET, binding = 0) uniform _mat_0_                                                                     \
+    layout(set = SET, binding = OFFSET + 0) uniform _mat_0_                                                            \
     {                                                                                                                  \
         Material u_mat;                                                                                                \
     };                                                                                                                 \
-    layout(set = SET, binding = 1) uniform sampler2D ambient_texture;                                                  \
-    layout(set = SET, binding = 2) uniform sampler2D emissive_texture;                                                 \
-    layout(set = SET, binding = 3) uniform sampler2D diffuse_texture;                                                  \
-    layout(set = SET, binding = 4) uniform sampler2D specular_texture;
+    layout(set = SET, binding = OFFSET + 1) uniform sampler2D ambient_texture;                                         \
+    layout(set = SET, binding = OFFSET + 2) uniform sampler2D emissive_texture;                                        \
+    layout(set = SET, binding = OFFSET + 3) uniform sampler2D diffuse_texture;                                         \
+    layout(set = SET, binding = OFFSET + 4) uniform sampler2D specular_texture;
 
 
 #define TEX_SLOT_NUM 5

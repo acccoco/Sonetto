@@ -1,8 +1,8 @@
 #pragma once
 #include <vector>
 #include "vk_config.hpp"
-#include "vk_common.hpp"
-#include "device.hpp"
+#include "core/vk_common.hpp"
+#include "core/device.hpp"
 #include "swapchain.hpp"
 #include "utils/semaphore_pool.hpp"
 
@@ -58,16 +58,34 @@ public:
 
 
     /**
-     * 等待所有的 fence，并清空 fence 列表。
-     * 并且将 fence 归还给 pool
+     * 申请一个 command buffer，用于当前 frame。在下一个循环时，该 command buffer 变得不可用
      */
-    void wait_clear_fence()
+    vk::CommandBuffer acquire_command_buffer(const std::string& name)
     {
-        if (_fences.empty())
-            return;
-        (void) _device.vkdevice().waitForFences(_fences, VK_TRUE, UINT64_MAX);
-        _device.fence_pool().revert(_fences);
-        _fences.clear();
+        auto command_buffer = _device.create_commnad_buffer(name);
+        _command_buffers.push_back(command_buffer);
+        return command_buffer;
+    }
+
+
+    /**
+     * 等待所有的 fence，并清空 fence 列表。并且将 fence 归还给 pool
+     * 销毁当前 frame 分配的临时 command buffer
+     */
+    void wait_resource()
+    {
+        if (!_fences.empty())
+        {
+            (void) _device.vkdevice().waitForFences(_fences, VK_TRUE, UINT64_MAX);
+            _device.fence_pool().revert(_fences);
+            _fences.clear();
+        }
+
+        if (!_command_buffers.empty())
+        {
+            _device.vkdevice().freeCommandBuffers(_device.command_pool().vkpool(), _command_buffers);
+            _command_buffers.clear();
+        }
     }
 
 
@@ -95,6 +113,9 @@ private:
 
     // 用于保护和当前 frame 关联的数据
     std::vector<vk::Fence> _fences = {};
+
+    // 当前 frame 申请的所有临时 command buffer
+    std::vector<vk::CommandBuffer> _command_buffers = {};
     // ====================================================================================================
 };
 

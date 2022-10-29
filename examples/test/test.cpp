@@ -1,21 +1,20 @@
-#include "func/model.hpp"
-#include <fmt/format.h>
+#include <memory>
+#include <iostream>
+#include "inc.hpp"
 
 
-struct Acc
+int main()
 {
-    Acc(int a) { spdlog::info("init Acc with: {}", a); }
-};
+    std::shared_ptr<int> s_ptr{new int(123)};
+    std::weak_ptr<int>   w_ptr = s_ptr;
+
+    std::cout << w_ptr.use_count() << std::endl;
+
+    s_ptr.reset();
+
+    std::cout << w_ptr.use_count() << std::endl;
 
 
-struct Bi
-{
-    Bi()
-        : acc(2)
-    {}
 
-    Acc acc;
-};
-
-
-int main() {}
+    int a = 123;
+}

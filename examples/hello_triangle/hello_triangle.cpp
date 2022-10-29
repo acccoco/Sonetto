@@ -61,12 +61,6 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
     //////////////////////////////////////////////////
 
 
-    // color attachment layout transfer: undefined -> present （无需保留之前的内容）
-    frame.image().transfer_layout(
-            command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, vk::AccessFlags()},
-            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-            vk::ImageLayout::eColorAttachmentOptimal, true);
-
     color_attach_info.imageView = frame.image().vkview();
     depth_attach_info.imageView = payload.depth_buffer->vkview();
 
@@ -86,20 +80,12 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
     command_buffer.endRendering();
 
 
-    /* color attachment layout transition: color -> present */
-    frame.image().transfer_layout(
-            command_buffer,
-            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-            {vk::PipelineStageFlagBits::eBottomOfPipe, {}}, vk::ImageLayout::ePresentSrcKHR);
-
-
     command_buffer.end();
 }
 
 
 void Hello::App::update() noexcept
 {
-    engine.frame_manager().acquire_frame();
     auto& frame   = engine.current_frame();
     auto& payload = _payloads[frame.frame_id()];
 
@@ -107,8 +93,6 @@ void Hello::App::update() noexcept
     record_command(payload.command_buffer, payload, frame);
 
     engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
-
-    engine.frame_manager().submit_frame();
 }
 
 

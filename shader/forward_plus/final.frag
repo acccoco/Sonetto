@@ -27,7 +27,7 @@ void main()
 {
     // 获取物体的属性
     Material mat = u_mat;
-    // parse_material(mat, vs.uv, diffuse_texture, ambient_texture, specular_texture);
+    parse_material(mat, vs.uv, diffuse_texture, ambient_texture, specular_texture);
 
     // 获得常用向量
     vec3 eye_pos = vec3(0);    // 因为是 view space
@@ -68,6 +68,6 @@ void main()
     // vec3 specular = mat.specular_color.rgb * lit.specular;
 
     vec3 color = diffuse;
-    color      = clamp(color / 3.f, 0.f, 1.f);
+    color      = clamp(color / 2.f, 0.f, 1.f);
     out_color  = vec4(color, 1.0);
 }

@@ -1,13 +1,14 @@
 #pragma once
-#include "application.hpp"
-#include "func/vk_func.hpp"
+#include "utils/application.hpp"
+#include "utils/vk_func.hpp"
 #include "camera.hpp"
-#include "func/model.hpp"
-#include "func/pipeline_template.hpp"
-#include "func/vertex.hpp"
+#include "engine/model.hpp"
+#include "utils/pipeline_template.hpp"
+#include "engine/vertex.hpp"
 #include "utils/rand.hpp"
 #include "proj_config.hpp"
-#include "application.hpp"
+#include <memory>
+#include "utils/application.hpp"
 #define HISS_CPP
 #include "forward_plus/type.glsl"
 #include "shader/common_type.glsl"
@@ -26,7 +27,7 @@ const float FAR  = 200.f;    // 远平面到摄像机的距离
 
 // 场景中的光源数量：均匀分布吧
 // FIXME
-const uint32_t LIGHT_DIM = 20u;
+const uint32_t LIGHT_DIM = 16u;
 const uint32_t LIGHT_NUM = LIGHT_DIM * LIGHT_DIM * LIGHT_DIM;
 
 // 场景的大小：[-range, range]^3
@@ -40,11 +41,11 @@ struct ShaderConst
 {
     float    near      = NEAR;
     float    far       = FAR;
-    uint32_t tile_size = TILE_SIZE;
+    uint32_t tile_size = ForwardPlusShader::TILE_SIZE;
     uint32_t tile_num_x{};    // framebuffer 在 x 方向上可以划分出多少个 tile
     uint32_t tile_num_y{};
-    uint32_t local_size_x = WORKGROUP_SIZE;    // compute shader workgroup size x
-    uint32_t local_size_y = WORKGROUP_SIZE;    // compute shader workgroup size y
+    uint32_t local_size_x = ForwardPlusShader::WORKGROUP_SIZE;    // compute shader workgroup size x
+    uint32_t local_size_y = ForwardPlusShader::WORKGROUP_SIZE;    // compute shader workgroup size y
 
 
     static std::vector<vk::SpecializationMapEntry> specialization_entries()
@@ -67,7 +68,7 @@ struct ShaderConst
  */
 inline uint32_t tile_num_x()
 {
-    return ROUND(g_engine->extent().width, TILE_SIZE);
+    return ROUND(g_engine->extent().width, ForwardPlusShader::TILE_SIZE);
 }
 
 
@@ -76,7 +77,7 @@ inline uint32_t tile_num_x()
  */
 inline uint32_t tile_num_y()
 {
-    return ROUND(g_engine->extent().height, TILE_SIZE);
+    return ROUND(g_engine->extent().height, ForwardPlusShader::TILE_SIZE);
 }
 
 /**
@@ -105,10 +106,11 @@ struct SharedFramePayload
      * 每一帧都会变化的数据，直接从 CPU 写入
      * @details 在 compute shader，vertex shader 以及 fragment shader 都会读取
      */
-    Hiss::UniformBuffer perframe_uniform{g_engine->device(), g_engine->allocator, sizeof(Frame), "perframe-uniform"};
+    std::shared_ptr<Hiss::UniformBuffer> perframe_uniform{new Hiss::UniformBuffer{
+            g_engine->device(), g_engine->allocator, sizeof(Shader::Frame), "perframe-uniform"}};
 
-    Hiss::DepthAttach depth_attach{g_engine->allocator, g_engine->device(), g_engine->depth_format(),
-                                   g_engine->extent(), "depth-attach"};
+    std::shared_ptr<Hiss::DepthAttach> depth_attach{new Hiss::DepthAttach{
+            g_engine->allocator, g_engine->device(), g_engine->depth_format(), g_engine->extent(), "depth-attach"}};
 
 
     /**
@@ -117,23 +119,20 @@ struct SharedFramePayload
      * @details - 在 light cull pass 的 compute shader 写入，在 final pass 的 fragment shader 读取
      * @details - 语法参考 https://stackoverflow.com/questions/72962565/what-is-the-syntax-for-passing-a-storage-image-as-descriptor
      */
-    Hiss::StorageImage light_grid_ssio{g_engine->allocator,
-                                       g_engine->device(),
-                                       vk::Format::eR32G32Uint,
-                                       {tile_num_x(), tile_num_y()},
-                                       "light-grid-storage-image"};
+    std::shared_ptr<Hiss::StorageImage> light_grid_ssio{new Hiss::StorageImage{g_engine->allocator,
+                                                                               g_engine->device(),
+                                                                               vk::Format::eR32G32Uint,
+                                                                               {tile_num_x(), tile_num_y()},
+                                                                               "light-grid-storage-image"}};
 
 
     /**
      * 所有 tile 的 light list 数据
      * @details 这个数据完全有 GPU 维护：light cull 阶段写入，final 阶段读取
      */
-    Hiss::Buffer light_index_ssbo{g_engine->device(),
-                                  g_engine->allocator,
-                                  sizeof(uint32_t) * LIGHT_INDEX_LIST_SIZE,
-                                  vk::BufferUsageFlagBits::eStorageBuffer,
-                                  VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                                  "light-index-ssbo"};
+    std::shared_ptr<Hiss::Buffer> light_index_ssbo{new Hiss::Buffer{
+            g_engine->device(), g_engine->allocator, sizeof(uint32_t) * LIGHT_INDEX_LIST_SIZE,
+            vk::BufferUsageFlagBits::eStorageBuffer, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "light-index-ssbo"}};
 };
 
 
@@ -148,11 +147,11 @@ struct Resource
     /**
      * 更新频率为 frame 的数据
      */
-    Frame frame_ubo = {
+    Shader::Frame frame_ubo = {
             .view_matrix = Camera::view(glm::vec3(30)),
     };
 
-    Scene scene_ubo = {
+    Shader::Scene scene_ubo = {
             .proj_matrix    = Hiss::perspective(60.f, g_engine->aspect(), NEAR, FAR),
             .in_proj_matrix = glm::inverse(scene_ubo.proj_matrix),
             .screen_width   = g_engine->extent().width,
@@ -196,7 +195,7 @@ struct Resource
     /**
      * 场景中所有物体的材质都是相同的
      */
-    Material material = {
+    Shader::Material material = {
             .diffuse_color = {0.5, 0.5, 0.5, 0.5},
     };
 
@@ -204,7 +203,7 @@ struct Resource
     /**
      * 场景中的所有光源，只需要初始化即可
      */
-    std::vector<Light> lights;
+    std::vector<Shader::Light> lights;
 
 
     // 各种 buffer =============================================================================================
@@ -214,15 +213,12 @@ struct Resource
      * @details 只在应用初始化阶段会调用
      * @details frustum 阶段使用 compute shader 写入数据；light cull 阶段使用 compute shader 读取
      */
-    Hiss::Buffer frustums_ssbo{g_engine->device(),
-                               g_engine->allocator,
-                               sizeof(Frustum) * tile_num(),
-                               vk::BufferUsageFlagBits::eStorageBuffer,
-                               VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                               "frustum-ssbo"};
+    std::shared_ptr<Hiss::Buffer> frustums_ssbo{new Hiss::Buffer{
+            g_engine->device(), g_engine->allocator, sizeof(ForwardPlusShader::Frustum) * tile_num(),
+            vk::BufferUsageFlagBits::eStorageBuffer, VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "frustum-ssbo"}};
 
-    Hiss::UniformBuffer scene_uniform{g_engine->device(), g_engine->allocator, sizeof(Scene), "scene-data",
-                                      &scene_ubo};
+    std::shared_ptr<Hiss::UniformBuffer> scene_uniform{new Hiss::UniformBuffer{
+            g_engine->device(), g_engine->allocator, sizeof(Shader::Scene), "scene-data", &scene_ubo}};
 
 
     /**
@@ -230,26 +226,24 @@ struct Resource
      * @details 在摄像机位置发生变化时，需要更新，通过 stage buffer 进行更新
      * @details 在 light cull pass 的 compute shader 以及 final 阶段的 fragment shader 时进行读取
      */
-    Hiss::Buffer lights_ssbo{g_engine->device(),
-                             g_engine->allocator,
-                             sizeof(Light) * LIGHT_NUM,
+    std::shared_ptr<Hiss::Buffer> lights_ssbo{
+            new Hiss::Buffer{g_engine->device(), g_engine->allocator, sizeof(Shader::Light) * LIGHT_NUM,
                              vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
-                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-                             "light-ssbo"};
+                             VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "light-ssbo"}};
 
 
     /**
      * 用于向 lights ssbo 中传输数据的 stage buffer
      */
-    Hiss::StageBuffer lights_stage_buffer{g_engine->device(), g_engine->allocator, sizeof(Light) * LIGHT_NUM,
+    Hiss::StageBuffer lights_stage_buffer{g_engine->device(), g_engine->allocator, sizeof(Shader::Light) * LIGHT_NUM,
                                           "light-ssbo-stage-buffer"};
 
 
     /**
      * 材质的 uniform buffer
      */
-    Hiss::UniformBuffer material_uniform{g_engine->device(), g_engine->allocator, sizeof(Material), "material",
-                                         &material};
+    std::shared_ptr<Hiss::UniformBuffer> material_uniform{new Hiss::UniformBuffer{
+            g_engine->device(), g_engine->allocator, sizeof(Shader::Material), "material", &material}};
 
 
     Hiss::UniformBuffer tile_num_uniform{g_engine->device(), g_engine->allocator, sizeof(tile_num_ubo), "tile-number",

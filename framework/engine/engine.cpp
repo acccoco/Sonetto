@@ -68,6 +68,14 @@ void Hiss::Engine::prepare()
     _frame_manager = new Hiss::FrameManager(*_device, *_swapchain);
 
     _shader_loader = new ShaderLoader(*_device);
+
+
+    // 创建默认的纹理
+    default_texture = std::make_unique<Hiss::Texture>(*_device, allocator, texture / "awesomeface.jpg",
+                                                      vk::Format::eR8G8B8A8Srgb);
+
+
+    create_material_descriptor_layout();
 }
 
 
@@ -92,6 +100,11 @@ void Hiss::Engine::init_vma()
 
 void Hiss::Engine::clean()
 {
+    // 销毁默认的纹理
+    default_texture.reset();
+
+    _device->vkdevice().destroy(material_layout);
+
     DELETE(_shader_loader);
     DELETE(_frame_manager);
     DELETE(_swapchain);
@@ -113,10 +126,14 @@ void Hiss::Engine::clean()
 void Hiss::Engine::preupdate() noexcept
 {
     timer._value.tick();
+    _frame_manager->acquire_frame();
 }
 
 
-void Hiss::Engine::postupdate() noexcept {}
+void Hiss::Engine::postupdate() noexcept
+{
+    _frame_manager->submit_frame();
+}
 
 
 Hiss::Image2D* Hiss::Engine::create_depth_attach(vk::SampleCountFlagBits sample) const

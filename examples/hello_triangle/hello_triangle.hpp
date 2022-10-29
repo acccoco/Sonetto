@@ -1,11 +1,11 @@
 #pragma once
-#include "core/engine.hpp"
-#include "func/vertex.hpp"
+#include "engine/engine.hpp"
+#include "engine/vertex.hpp"
 #include "proj_config.hpp"
-#include "func/pipeline_template.hpp"
-#include "application.hpp"
-#include "func/vertex_buffer.hpp"
-#include "func/vk_func.hpp"
+#include "utils/pipeline_template.hpp"
+#include "utils/application.hpp"
+#include "engine/vertex_buffer.hpp"
+#include "utils/vk_func.hpp"
 
 
 namespace Hello

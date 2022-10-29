@@ -1,13 +1,15 @@
 #pragma once
 #include <array>
-#include "core/engine.hpp"
+
 #include "proj_config.hpp"
-#include "func/model.hpp"
-#include "func/pipeline_template.hpp"
-#include "func/texture.hpp"
-#include "func/vk_func.hpp"
+#include "engine/engine.hpp"
+#include "engine/model.hpp"
+#include "engine/model2.hpp"
+#include "engine/texture.hpp"
 #include "utils/tools.hpp"
-#include "application.hpp"
+#include "utils/vk_func.hpp"
+#include "utils/application.hpp"
+#include "utils/pipeline_template.hpp"
 
 
 namespace MSAA
@@ -46,6 +48,8 @@ public:
 
     std::vector<Payload> payloads;
 
+    Hiss::MeshLoader mesh2{engine, model / "viking_room" / "viking_room.obj"};
+
 
 private:
     void prepare() override;
@@ -74,11 +78,11 @@ public:
     const vk::SampleCountFlagBits msaa_sample = engine.device().gpu().max_msaa_cnt();
 
 
-    Hiss::Mesh    mesh = Hiss::Mesh(engine, model / "viking_room/viking_room.obj");
-    Hiss::Texture tex  = Hiss::Texture(engine.device(), engine.allocator, model / "viking_room/tex/viking_room.png",
-                                       vk::Format::eR8G8B8A8Srgb);
+    // Hiss::Mesh    mesh = Hiss::Mesh(engine, model / "viking_room/viking_room.obj");
+    // Hiss::Texture tex  = Hiss::Texture(engine.device(), engine.allocator, model / "viking_room/tex/viking_room.png",
+    // vk::Format::eR8G8B8A8Srgb);
 
-    Hiss::Mesh mesh2_cube = Hiss::Mesh(engine, model / "cube/cube.obj");
+    // Hiss::Mesh mesh2_cube = Hiss::Mesh(engine, model / "cube/cube.obj");
 
 
 #pragma region pipeline 相关

@@ -3,7 +3,7 @@
 #include <utility>
 #include <fmt/format.h>
 #include "utils/tools.hpp"
-#include "core/engine.hpp"
+#include "engine.hpp"
 
 
 Hiss::Mesh::Mesh(Hiss::Engine& engine, const std::string& mesh_path, const std::string& name)
@@ -42,7 +42,7 @@ void Hiss::Mesh::tiny_obj_load(std::vector<Hiss::Vertex3DNormalUV>&        verti
     // 读取 obj 文件，会自动三角化
     std::string err_msg;
     if (!tinyobj::LoadObj(&attr, &shapes, &materials, &err_msg, mesh_path().c_str(), nullptr, true))
-        throw std::runtime_error(fmt::format("fail to load obj file: ({}), error message: ({})", mesh_path(), err_msg));
+        throw std::runtime_error(fmt::format("fail to _load obj file: ({}), error message: ({})", mesh_path(), err_msg));
 
 
     for (const auto& shape: shapes)

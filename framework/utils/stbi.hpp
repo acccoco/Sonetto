@@ -20,7 +20,7 @@ public:
         stbi_set_flip_vertically_on_load(flip_vertical);
         data = stbi_load(file_path.c_str(), &width._value, &height._value, &channels_in_file._value, desired_channels);
         if (data == nullptr)
-            throw std::runtime_error("error: load image, file path: " + file_path);
+            throw std::runtime_error("error: _load image, file path: " + file_path);
     }
 
 

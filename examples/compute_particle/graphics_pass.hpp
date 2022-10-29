@@ -1,11 +1,11 @@
 #pragma once
-#include "core/engine.hpp"
+#include "engine/engine.hpp"
 #include "proj_config.hpp"
-#include "func/texture.hpp"
-#include "func/pipeline_template.hpp"
-#include "application.hpp"
+#include "engine/texture.hpp"
+#include "utils/pipeline_template.hpp"
+#include "utils/application.hpp"
 #include "vk_config.hpp"
-#include "func/vk_func.hpp"
+#include "utils/vk_func.hpp"
 
 #include "./particle.hpp"
 
@@ -74,7 +74,7 @@ struct Graphics
 
 
     Hiss::Buffer* storage_buffer = nullptr;
-    uint32_t       num_particles  = 0;
+    uint32_t      num_particles  = 0;
 
     Hiss::Engine& engine;
 
@@ -309,13 +309,6 @@ private:
                  vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite});
 
 
-        // layout transition: color attachment 不需要之前的数据
-        frame.image().transfer_layout(
-                command_buffer, {vk::PipelineStageFlagBits::eTopOfPipe, {}},
-                {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-                vk::ImageLayout::eColorAttachmentOptimal, true);
-
-
         // pipeline barrier: storage buffer
         assert(storage_buffer);
         storage_buffer->memory_barrier(
@@ -363,13 +356,6 @@ private:
         command_buffer.bindVertexBuffers(0, {storage_buffer->vkbuffer()}, {0});
         command_buffer.draw(num_particles, 1, 0, 0);
         command_buffer.endRendering();
-
-
-        // layout transition: color attachment
-        frame.image().transfer_layout(
-                command_buffer,
-                {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-                {vk::PipelineStageFlagBits::eBottomOfPipe}, vk::ImageLayout::ePresentSrcKHR, false);
 
 
         command_buffer.end();

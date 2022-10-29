@@ -1,10 +1,10 @@
 #pragma once
 #pragma once
-#include "core/engine.hpp"
+#include "engine/engine.hpp"
 #include "proj_config.hpp"
-#include "func/texture.hpp"
-#include "func/pipeline_template.hpp"
-#include "application.hpp"
+#include "engine/texture.hpp"
+#include "utils/pipeline_template.hpp"
+#include "utils/application.hpp"
 #include "vk_config.hpp"
 
 #include "./particle.hpp"

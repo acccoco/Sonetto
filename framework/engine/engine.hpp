@@ -1,12 +1,15 @@
 #pragma once
+#include <memory>
 #include "utils/shader_loader.hpp"
 #include "utils/timer.hpp"
-#include "device.hpp"
-#include "instance.hpp"
+#include "core/device.hpp"
+#include "core/instance.hpp"
 #include "swapchain.hpp"
-#include "vk_common.hpp"
+#include "core/vk_common.hpp"
 #include "frame.hpp"
 #include "frame_manager.hpp"
+#include "texture.hpp"
+#include "utils/vk_func.hpp"
 
 
 namespace Hiss
@@ -53,7 +56,7 @@ public:
     // layout 转换为 present，保留之前的数据，最后一个 stage 是 color attachment
     static void color_attach_layout_trans_2(vk::CommandBuffer command_buffer, Image2D& image);
 
-    vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout, const std::string& debug_name ="");
+    vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout, const std::string& debug_name = "");
 
 #pragma endregion
 
@@ -64,6 +67,20 @@ private:
 
     void create_descriptor_pool();
 
+
+    void create_material_descriptor_layout()
+    {
+        material_layout = Hiss::Initial::descriptor_set_layout(
+                _device->vkdevice(),
+                std::vector<Hiss::Initial::BindingInfo>{
+                        {vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment},
+                        {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                        {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                        {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                        {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                });
+    }
+
 #pragma endregion
 
 
@@ -71,6 +88,11 @@ private:
 public:
     Prop<std::string, Engine> name{};
     Prop<Timer, Engine>       timer{};
+
+    // 默认的，用于占位的纹理
+    std::unique_ptr<Texture> default_texture;
+
+    vk::DescriptorSetLayout material_layout;
 
 
     vk::Device vkdevice() const { return this->device().vkdevice(); }

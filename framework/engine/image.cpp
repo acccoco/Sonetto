@@ -173,6 +173,7 @@ Hiss::Image2D::Image2D(Hiss::Device& device, vk::Image image, const std::string&
       is_proxy(true),
       _layout(layout)
 {
+    device.set_debug_name(vk::ObjectType::eImage, VkImage(image), name);
     _create_view();
 }
 

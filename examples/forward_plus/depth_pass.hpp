@@ -11,12 +11,43 @@ namespace ForwardPlus
  */
 struct DepthPass : public Hiss::IPass
 {
-    explicit DepthPass(Hiss::Engine& engine, Resource& resource)
-        : Hiss::IPass(engine),
-          resource(resource)
+    explicit DepthPass(Hiss::Engine& engine)
+        : Hiss::IPass(engine)
     {}
 
-    Resource& resource;
+
+    struct Resource_
+    {
+        /**
+         * 向 image 内写入场景的深度信息，需要确保 imagelayout 是 depthstencil；
+         * 需要建立 execution barrier，不需要保留原本的内容
+         */
+        std::shared_ptr<Hiss::Image2D> depth_attach;
+
+        /**
+         * 场景相关的信息
+         * 只读访问。在 vertex 以及 fragment 阶段进行访问
+         */
+        std::shared_ptr<Hiss::UniformBuffer> scene_uniform;
+
+
+        /**
+         * 每 frame 改变的信息，只读访问
+         */
+        std::shared_ptr<Hiss::UniformBuffer> frame_uniform;
+    };
+
+
+    struct FramePayload
+    {
+        vk::CommandBuffer command_buffer = g_engine->device().create_commnad_buffer("depth-pass");
+        vk::DescriptorSet descriptor_set;
+
+        Resource_ res;
+    };
+
+    std::vector<FramePayload> payloads{g_engine->frame_manager().frames_number()};
+
 
     const std::filesystem::path shader_depth_vert = shader / "forward_plus" / "depth.vert";
     const std::filesystem::path shader_depth_frag = shader / "forward_plus" / "depth.frag";
@@ -35,17 +66,15 @@ struct DepthPass : public Hiss::IPass
     vk::RenderingInfo render_info = Hiss::Initial::render_info(depth_attach_info, g_engine->extent());
 
 
-    struct FramePayload
+    void prepare(const std::vector<Resource_>& resources)
     {
-        vk::CommandBuffer command_buffer = g_engine->device().create_commnad_buffer("depth-pass");
-        vk::DescriptorSet descriptor_set;
-    };
+        assert(resources.size() == payloads.size());
+        for (int i = 0; i < resources.size(); ++i)
+        {
+            payloads[i].res = resources[i];
+        }
 
-    std::vector<FramePayload> payloads{g_engine->frame_manager().frames_number()};
 
-
-    void prepare()
-    {
         descriptor_set_layout = Hiss::Initial::descriptor_set_layout(
                 g_engine->vkdevice(), {
                                               // binding 0: perframe uniform
@@ -81,16 +110,15 @@ struct DepthPass : public Hiss::IPass
 
 
         // 将 descriptor 与 buffer 绑定起来
-        for (int i = 0; i < payloads.size(); ++i)
+        for (auto& payload: payloads)
         {
             Hiss::Initial::descriptor_set_write(
-                    g_engine->vkdevice(), payloads[i].descriptor_set,
+                    g_engine->vkdevice(), payload.descriptor_set,
                     {
                             // binding 0: perframe uniform
-                            {.type   = vk::DescriptorType::eUniformBuffer,
-                             .buffer = &resource.payloads[i].perframe_uniform},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.frame_uniform.get()},
                             // binding 1: scene uniform
-                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = &resource.scene_uniform},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.scene_uniform.get()},
                     });
         }
     }
@@ -99,9 +127,10 @@ struct DepthPass : public Hiss::IPass
     /**
      * 每一帧都需要录制命令
      */
-    void record_command(vk::CommandBuffer& command_buffer, Hiss::Frame& frame)
+    void record_command(vk::CommandBuffer& command_buffer, Hiss::Frame& frame, const std::vector<glm::mat4>& obj_matrix,
+                        const Hiss::Mesh& cube_mesh)
     {
-        depth_attach_info.imageView = resource.payloads[frame.frame_id()].depth_attach.vkview();
+        depth_attach_info.imageView = payloads[frame.frame_id()].res.depth_attach->vkview();
 
         // depth 等资源没有被占用，无需同步
 
@@ -113,14 +142,14 @@ struct DepthPass : public Hiss::IPass
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0,
                                                   {payloads[frame.frame_id()].descriptor_set}, {});
 
-                command_buffer.bindVertexBuffers(0, {resource.mesh_cube.vertex_buffer().vkbuffer()}, {0});
-                command_buffer.bindIndexBuffer(resource.mesh_cube.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
+                command_buffer.bindVertexBuffers(0, {cube_mesh.vertex_buffer().vkbuffer()}, {0});
+                command_buffer.bindIndexBuffer(cube_mesh.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
 
-                for (auto& mat: resource.cube_matrix)
+                for (auto& mat: obj_matrix)
                 {
                     command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0,
                                                  sizeof(glm::mat4), &mat);
-                    command_buffer.drawIndexed((uint32_t) resource.mesh_cube.index_buffer().index_num, 1, 0, 0, 0);
+                    command_buffer.drawIndexed((uint32_t) cube_mesh.index_buffer().index_num, 1, 0, 0, 0);
                 }
             }
             command_buffer.endRendering();
@@ -131,19 +160,19 @@ struct DepthPass : public Hiss::IPass
 
     std::vector<bool> has_run = std::vector<bool>(engine.frame_manager().frames_number(), false);
 
-    void update()
+    void update(const std::vector<glm::mat4>& obj_matrix, const Hiss::Mesh& cube_mesh)
     {
         // 直接执行命令
         auto& frame   = g_engine->current_frame();
         auto& payload = payloads[frame.frame_id()];
 
-//        if (has_run[frame.frame_id()])
-//            return;
-//        else
-//            has_run[frame.frame_id()] = true;
+        //        if (has_run[frame.frame_id()])
+        //            return;
+        //        else
+        //            has_run[frame.frame_id()] = true;
 
 
-        record_command(payload.command_buffer, frame);
+        record_command(payload.command_buffer, frame, obj_matrix, cube_mesh);
 
         g_engine->queue().submit_commands({}, {payload.command_buffer}, {}, frame.insert_fence());
     }

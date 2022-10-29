@@ -1,10 +1,30 @@
+#ifndef SHADER_LIGHT_TYPE
+#define SHADER_LIGHT_TYPE
+
 #ifdef HISS_CPP
+
+// 用于内存对齐
 #define ALIGN(n) alignas(n)
+
+// 用于定义 namespace
+#define NAMESPACE_BEGIN(name)                                                                                          \
+    namespace name                                                                                                     \
+    {
+#define NAMESPACE_END                                                                                                  \
+    }                                                                                                                  \
+    ;
 using namespace glm;
+
 #else
+
 #define ALIGN(n)
+#define NAMESPACE_BEGIN(name)
+#define NAMESPACE_END
+
 #endif
 
+
+NAMESPACE_BEGIN(Shader)
 
 #define POINT_LIGHT 0
 #define DIRECTIONAL_LIGHT 1
@@ -63,5 +83,9 @@ struct Material    // total size = 112
 
     // offset = 104
 
-    ALIGN(8) vec2 _PADDING_;
+    ALIGN(8) vec2 _padding_;
 };
+
+NAMESPACE_END
+
+#endif

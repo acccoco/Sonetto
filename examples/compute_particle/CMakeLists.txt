@@ -9,5 +9,5 @@ compile_shader(
 
 add_sample(
         TARGET_NAME ${FOLDER_NAME}
-        SOURCES "surface.hpp" "graphics.hpp" "nbody.hpp" "particle.hpp" "compute_particle.cpp"
+        SOURCES "surface_pass.hpp" "graphics_pass.hpp" "nbody_pass.hpp" "particle.hpp" "compute_particle.cpp"
 )

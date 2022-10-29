@@ -10,12 +10,23 @@ namespace ForwardPlus
  */
 struct CullPass : public Hiss::IPass
 {
-    explicit CullPass(Hiss::Engine& engine, Resource& resource)
-        : Hiss::IPass(engine),
-          resource(resource)
+    explicit CullPass(Hiss::Engine& engine)
+        : Hiss::IPass(engine)
     {}
 
-    Resource& resource;
+
+    struct Resource_
+    {
+        /**
+         * 读取深度信息，需要 image layout = shader readonly
+         */
+        std::shared_ptr<Hiss::Image2D> depth_attach;
+        std::shared_ptr<Hiss::StorageImage> light_grid_image;    // 写入每个 tile 的 light index 的 offset 和 count
+        std::shared_ptr<Hiss::UniformBuffer> scene_uniform;      // 只读，场景信息
+        std::shared_ptr<Hiss::Buffer>        frustum_ssbo;       // 只读，每个 tile 对应 frustum 的平面参数
+        std::shared_ptr<Hiss::Buffer>        light_ssbo;         // 只读，所有的光源信息
+        std::shared_ptr<Hiss::Buffer>        light_index_ssbo;    // 写入
+    };
 
     const std::filesystem::path shader_light_cull = shader / "forward_plus" / "light_cull.comp";
 
@@ -40,11 +51,13 @@ struct CullPass : public Hiss::IPass
         vk::DescriptorSet descriptor_set;
         vk::CommandBuffer command_buffer = g_engine->device().create_commnad_buffer("cull-pass");
 
+        Resource_ res;
+
 
         /**
-     * 原子计数器，在 light cull pass 的 compute shader 中进行读写
-     * @details 每一帧使用后都需要将数值清零，因此 application 阶段可以直接写入
-     */
+         * 原子计数器，在 light cull pass 的 compute shader 中进行读写
+         * @details 每一帧使用后都需要将数值清零，因此 application 阶段可以直接写入
+         */
         Hiss::Buffer atomic_counter{g_engine->device(),
                                     g_engine->allocator,
                                     sizeof(uint32_t),
@@ -75,8 +88,13 @@ struct CullPass : public Hiss::IPass
     vk::Sampler depth_sampler = Hiss::Initial::sampler(g_engine->device());
 
 
-    void prepare()
+    void prepare(const std::vector<Resource_>& resources)
     {
+        assert(resources.size() == payloads.size());
+        for (int i = 0; i < resources.size(); ++i)
+            payloads[i].res = resources[i];
+
+
         // 创建 descriptor set layout
         descriptor_set_layout = Hiss::Initial::descriptor_set_layout(
                 g_engine->vkdevice(),
@@ -115,30 +133,29 @@ struct CullPass : public Hiss::IPass
 
 
         // 绑定 descriptor set 与 buffer
-        for (int i = 0; i < payloads.size(); ++i)
+        for (auto& payload: payloads)
         {
             Hiss::Initial::descriptor_set_write(
-                    g_engine->vkdevice(), payloads[i].descriptor_set,
+                    g_engine->vkdevice(), payload.descriptor_set,
                     {
                             // binding 0: depth texture
                             {.type    = vk::DescriptorType::eCombinedImageSampler,
-                             .image   = &resource.payloads[i].depth_attach,
+                             .image   = payload.res.depth_attach.get(),
                              .sampler = depth_sampler},
                             // binding 1: light index grid
-                            {.type = vk::DescriptorType::eStorageImage, .image = &resource.payloads[i].light_grid_ssio},
+                            {.type = vk::DescriptorType::eStorageImage, .image = payload.res.light_grid_image.get()},
                             // binding 2: scene ubo
-                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = &resource.scene_uniform},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.scene_uniform.get()},
                             // binding 3: frustums
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &resource.frustums_ssbo},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = payload.res.frustum_ssbo.get()},
                             // binding 4: light list
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &resource.lights_ssbo},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = payload.res.light_ssbo.get()},
                             // binding 5: light index list
-                            {.type   = vk::DescriptorType::eStorageBuffer,
-                             .buffer = &resource.payloads[i].light_index_ssbo},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = payload.res.light_index_ssbo.get()},
                             // binding 6: atomic counter
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &payloads[i].atomic_counter},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &payload.atomic_counter},
                             // binding 7: debug ssbo
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &payloads[i].debug_buffer},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &payload.debug_buffer},
                     });
         }
 
@@ -164,24 +181,11 @@ struct CullPass : public Hiss::IPass
      */
     void record_command()
     {
-        for (int i = 0; i < payloads.size(); ++i)
+        for (auto& payload: payloads)
         {
-            auto& payload        = payloads[i];
-            auto& shared_payload = resource.payloads[i];
-
-
             // 录制命令
             payload.command_buffer.begin(vk::CommandBufferBeginInfo{});
             {
-                // 等待前一个 depth pass 完成深度写入，并且进行 layout 转换
-                shared_payload.depth_attach.memory_barrier(
-                        {vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
-                         vk::AccessFlagBits::eDepthStencilAttachmentWrite},
-                        {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderRead},
-                        vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                        payload.command_buffer);
-
-
                 // 执行当前 pass
                 payload.command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
                 payload.command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0,

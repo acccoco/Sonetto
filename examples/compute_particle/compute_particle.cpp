@@ -1,16 +1,16 @@
-#include "core/engine.hpp"
+#include "engine/engine.hpp"
 #include "proj_config.hpp"
-#include "func/texture.hpp"
-#include "func/pipeline_template.hpp"
-#include "application.hpp"
+#include "engine/texture.hpp"
+#include "utils/pipeline_template.hpp"
+#include "utils/application.hpp"
 #include "vk_config.hpp"
 #include "utils/rand.hpp"
 #include "run.hpp"
 
 #include "./particle.hpp"
-#include "./graphics.hpp"
-#include "./nbody.hpp"
-#include "./surface.hpp"
+#include "./graphics_pass.hpp"
+#include "./nbody_pass.hpp"
+#include "./surface_pass.hpp"
 
 
 namespace ParticleCompute
@@ -48,7 +48,7 @@ public:
         surface->prepare();
 
         Hiss::Buffer* storage_buffer;
-        uint32_t       num_particles;
+        uint32_t      num_particles;
         if (USE_SURFACE)
         {
             storage_buffer = surface->storage_buffer;
@@ -70,15 +70,12 @@ public:
 
     void update() noexcept override
     {
-        engine.frame_manager().acquire_frame();
-
         if (USE_SURFACE)
             surface->update();
         else
             nbody->update();
 
         graphics->update();
-        engine.frame_manager().submit_frame();
     }
 
 

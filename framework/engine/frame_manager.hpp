@@ -1,8 +1,8 @@
 #pragma once
 #include <vector>
 #include "vk_config.hpp"
-#include "vk_common.hpp"
-#include "device.hpp"
+#include "core/vk_common.hpp"
+#include "core/device.hpp"
 #include "swapchain.hpp"
 #include "utils/semaphore_pool.hpp"
 #include "frame.hpp"
@@ -59,7 +59,22 @@ public:
 
         // 设置 current frame，等待 frame 对应的资源可用
         _current_frame = _frames[swapchain_image_index];
-        _current_frame->wait_clear_fence();
+        _current_frame->wait_resource();
+
+
+        // 对 frame 的 image 进行 layout trans
+        {
+            auto command_buffer = _current_frame->acquire_command_buffer("color attach layout trans 1");
+            command_buffer.begin(vk::CommandBufferBeginInfo{});
+
+            _current_frame->image().memory_barrier(
+                    {vk::PipelineStageFlagBits::eTopOfPipe},
+                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, command_buffer);
+
+            command_buffer.end();
+            _device.queue().submit_commands({}, {command_buffer}, {}, _current_frame->insert_fence());
+        }
     }
 
 
@@ -67,6 +82,23 @@ public:
     void submit_frame()
     {
         assert(_current_frame != nullptr);
+
+
+        // 对 color attachment 进行 layout trans
+        {
+            auto command_buffer = _current_frame->acquire_command_buffer("color attach layout trans 1");
+            command_buffer.begin(vk::CommandBufferBeginInfo{});
+
+            _current_frame->image().memory_barrier(
+                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
+                    {vk::PipelineStageFlagBits::eBottomOfPipe}, vk::ImageLayout::eColorAttachmentOptimal,
+                    vk::ImageLayout::ePresentSrcKHR, command_buffer);
+
+            command_buffer.end();
+            _device.queue().submit_commands({}, {command_buffer}, {}, _current_frame->insert_fence());
+        }
+
+
         _swapchain.submit_image(_current_frame->frame_id(), _current_frame->submit_semaphore());
 
         // 提交之后，current frame 就是无效的了

@@ -1,10 +1,30 @@
+#ifndef SHADER_COMMON_TYPE
+#define SHADER_COMMON_TYPE
+
 #ifdef HISS_CPP
+
+// 用于内存对齐
 #define ALIGN(n) alignas(n)
+
+// 用于定义 namespace
+#define NAMESPACE_BEGIN(name)                                                                                          \
+    namespace name                                                                                                     \
+    {
+#define NAMESPACE_END                                                                                                  \
+    }                                                                                                                  \
+    ;
 using namespace glm;
+
 #else
+
 #define ALIGN(n)
+#define NAMESPACE_BEGIN(name)
+#define NAMESPACE_END
+
 #endif
 
+
+NAMESPACE_BEGIN(Shader)
 
 /**
  * 场景级别的数据，不会轻易改变
@@ -44,3 +64,7 @@ struct VertFrag
     ALIGN(16) vec3 color;    // 顶点颜色
     ALIGN(8) vec2 uv;
 };
+
+NAMESPACE_END
+
+#endif

@@ -1,11 +1,11 @@
-#include "core/engine.hpp"
-#include "application.hpp"
+#include "engine/engine.hpp"
+#include "utils/application.hpp"
 #include "utils/tools.hpp"
 #include "proj_config.hpp"
-#include "func/vertex.hpp"
-#include "func/pipeline_template.hpp"
-#include "func/texture.hpp"
-#include "func/vertex_buffer.hpp"
+#include "engine/vertex.hpp"
+#include "utils/pipeline_template.hpp"
+#include "engine/texture.hpp"
+#include "engine/vertex_buffer.hpp"
 #include "utils/stbi.hpp"
 #include "run.hpp"
 
@@ -151,8 +151,6 @@ public:
 
     void update() override
     {
-        engine.frame_manager().acquire_frame();
-
         auto& frame   = engine.current_frame();
         auto& payload = payloads[frame.frame_id()];
 
@@ -160,8 +158,6 @@ public:
         record_command(payload.command_buffer, frame);
 
         engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
-
-        engine.frame_manager().submit_frame();
     }
 
     void clean() override
@@ -289,7 +285,6 @@ public:
 
         // 内存屏障与布局转换
         Hiss::Engine::depth_attach_execution_barrier(command_buffer, *depth_buffer);
-        Hiss::Engine::color_attach_layout_trans_1(command_buffer, frame.image());
 
 
         // framebuffer 相关设置
@@ -312,7 +307,6 @@ public:
         }
         command_buffer.endRendering();
 
-        Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
 
         command_buffer.end();
     }

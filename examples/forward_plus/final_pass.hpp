@@ -6,12 +6,21 @@ namespace ForwardPlus
 {
 struct FinalPass : public Hiss::IPass
 {
-    explicit FinalPass(Hiss::Engine& engine, Resource& resource)
-        : Hiss::IPass(engine),
-          resource(resource)
+    explicit FinalPass(Hiss::Engine& engine)
+        : Hiss::IPass(engine)
     {}
 
-    Resource& resource;
+
+    struct Resource_
+    {
+        std::shared_ptr<Hiss::Image2D>       depth_attach;
+        std::shared_ptr<Hiss::UniformBuffer> scene_uniform;
+        std::shared_ptr<Hiss::UniformBuffer> frame_uniform;
+        std::shared_ptr<Hiss::Buffer>        light_index_ssbo;
+        std::shared_ptr<Hiss::StorageImage>  light_grid_image;
+        std::shared_ptr<Hiss::Buffer>        light_ssbo;
+        std::shared_ptr<Hiss::UniformBuffer> mat_uniform;
+    };
 
 
     const std::filesystem::path shader_vert = shader / "forward_plus" / "final.vert";
@@ -46,6 +55,8 @@ struct FinalPass : public Hiss::IPass
         vk::DescriptorSet descriptor_set_0;
         vk::DescriptorSet descriptor_set_1;
         vk::DescriptorSet descriptor_set_2;
+
+        Resource_ res;
     };
 
     std::vector<Payload> payloads{g_engine->frame_manager().frames_number()};
@@ -115,53 +126,53 @@ struct FinalPass : public Hiss::IPass
     void bind_descriptor_set()
     {
         // 将 descriptor set 与 buffer 绑定起来
-        for (int i = 0; i < payloads.size(); ++i)
+        for (auto& payload: payloads)
         {
-            auto& payload        = payloads[i];
-            auto& shared_payload = resource.payloads[i];
-
-
             // vertex 使用的
             Hiss::Initial::descriptor_set_write(
                     g_engine->vkdevice(), payload.descriptor_set_0,
                     {
-                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = &shared_payload.perframe_uniform},
-                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = &resource.scene_uniform},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.frame_uniform.get()},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.scene_uniform.get()},
                     });
 
             //fragment 的材质
             Hiss::Initial::descriptor_set_write(
                     g_engine->vkdevice(), payload.descriptor_set_1,
                     {
-                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = &resource.material_uniform},
+                            {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.res.mat_uniform.get()},
                             {.type    = vk::DescriptorType::eCombinedImageSampler,
-                             .image   = &tex.image(),
-                             .sampler = tex.sampler()},
+                             .image   = &engine.default_texture->image(),
+                             .sampler = engine.default_texture->sampler()},
                             {.type    = vk::DescriptorType::eCombinedImageSampler,
-                             .image   = &tex.image(),
-                             .sampler = tex.sampler()},
+                             .image   = &engine.default_texture->image(),
+                             .sampler = engine.default_texture->sampler()},
                             {.type    = vk::DescriptorType::eCombinedImageSampler,
-                             .image   = &tex.image(),
-                             .sampler = tex.sampler()},
+                             .image   = &engine.default_texture->image(),
+                             .sampler = engine.default_texture->sampler()},
                             {.type    = vk::DescriptorType::eCombinedImageSampler,
-                             .image   = &tex.image(),
-                             .sampler = tex.sampler()},
+                             .image   = &engine.default_texture->image(),
+                             .sampler = engine.default_texture->sampler()},
                     });
 
             // fragment 用到的光源相关
             Hiss::Initial::descriptor_set_write(
                     g_engine->vkdevice(), payload.descriptor_set_2,
                     {
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &shared_payload.light_index_ssbo},
-                            {.type = vk::DescriptorType::eStorageImage, .image = &shared_payload.light_grid_ssio},
-                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = &resource.lights_ssbo},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = payload.res.light_index_ssbo.get()},
+                            {.type = vk::DescriptorType::eStorageImage, .image = payload.res.light_grid_image.get()},
+                            {.type = vk::DescriptorType::eStorageBuffer, .buffer = payload.res.light_ssbo.get()},
                     });
         }
     }
 
 
-    void prepare()
+    void prepare(const std::vector<Resource_>& resources)
     {
+        assert(resources.size() == payloads.size());
+        for (int i = 0; i < resources.size(); ++i)
+            payloads[i].res = resources[i];
+
         create_descriptor_layout();
         create_pipeline();
 
@@ -181,47 +192,19 @@ struct FinalPass : public Hiss::IPass
     /**
      * 每一帧都需要录制命令
      */
-    void record_command(vk::CommandBuffer& command_buffer, Hiss::Frame& frame)
+    void record_command(vk::CommandBuffer& command_buffer, Hiss::Frame& frame, const std::vector<glm::mat4>& obj_matrix,
+                        const Hiss::Mesh& cube_mesh)
     {
         auto& payload = payloads[frame.frame_id()];
 
-        auto& shared_payload = resource.payloads[frame.frame_id()];
-
 
         // 更新 framebuffer 的信息
-        depth_attach_info.imageView = shared_payload.depth_attach.vkview();
+        depth_attach_info.imageView = payload.res.depth_attach->vkview();
         color_attach_info.imageView = frame.image().vkview();
 
 
         command_buffer.begin(vk::CommandBufferBeginInfo{});
         {
-            // color attach 进行 layout trans
-            frame.image().memory_barrier(
-                    {vk::PipelineStageFlagBits::eTopOfPipe},
-                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-                    vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, command_buffer);
-
-
-            // depth attache layout transfer：等待 light cull pass 完成深度的读取
-            shared_payload.depth_attach.memory_barrier(
-                    {vk::PipelineStageFlagBits::eComputeShader},
-                    {vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
-                     vk::AccessFlagBits::eDepthStencilAttachmentRead},
-                    vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, command_buffer);
-
-            // 等待 light cull pass 写入 light index list
-            shared_payload.light_index_ssbo.memory_barrier(
-                    command_buffer, {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
-                    {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead});
-
-
-            // 等待 light cull pass 写入 light index grid
-            shared_payload.light_grid_ssio.memory_barrier(
-                    {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
-                    {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead},
-                    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral, command_buffer);
-
-
             // 进行绘制
             command_buffer.beginRendering(render_info);
             {
@@ -234,36 +217,29 @@ struct FinalPass : public Hiss::IPass
                                                   },
                                                   {});
 
-                command_buffer.bindVertexBuffers(0, {resource.mesh_cube.vertex_buffer().vkbuffer()}, {0});
-                command_buffer.bindIndexBuffer(resource.mesh_cube.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
+                command_buffer.bindVertexBuffers(0, {cube_mesh.vertex_buffer().vkbuffer()}, {0});
+                command_buffer.bindIndexBuffer(cube_mesh.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
 
 
-                for (auto& mat: resource.cube_matrix)
+                for (auto& mat: obj_matrix)
                 {
                     command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eVertex, 0,
                                                  sizeof(glm::mat4), &mat);
-                    command_buffer.drawIndexed((uint32_t) resource.mesh_cube.index_buffer().index_num, 1, 0, 0, 0);
+                    command_buffer.drawIndexed((uint32_t) cube_mesh.index_buffer().index_num, 1, 0, 0, 0);
                 }
             }
             command_buffer.endRendering();
-
-
-            // 再对 color attach 进行 layout trans
-            frame.image().memory_barrier(
-                    {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-                    {vk::PipelineStageFlagBits::eBottomOfPipe}, vk::ImageLayout::eColorAttachmentOptimal,
-                    vk::ImageLayout::ePresentSrcKHR, command_buffer);
         }
         command_buffer.end();
     }
 
 
-    void update()
+    void update(const std::vector<glm::mat4>& obj_matrix, const Hiss::Mesh& cube_mesh)
     {
         auto& frame   = g_engine->current_frame();
         auto& payload = payloads[frame.frame_id()];
 
-        record_command(payload.command_buffer, frame);
+        record_command(payload.command_buffer, frame, obj_matrix, cube_mesh);
 
         g_engine->queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()},
                                           frame.insert_fence());

@@ -11,12 +11,18 @@ namespace ForwardPlus
  */
 struct FrustumsPass : public Hiss::IPass
 {
-    explicit FrustumsPass(Hiss::Engine& engine, Resource& resource)
-        : Hiss::IPass(engine),
-          resource(resource)
+    explicit FrustumsPass(Hiss::Engine& engine)
+        : Hiss::IPass(engine)
     {}
 
-    Resource& resource;
+
+    struct Resource_
+    {
+        std::shared_ptr<Hiss::Buffer>        frustum_ssbo;
+        std::shared_ptr<Hiss::UniformBuffer> scene_uniform;
+
+        const ShaderConst& shader_const;
+    };
 
     const std::filesystem::path shader_frustum = shader / "forward_plus" / "frustum.comp";
 
@@ -28,7 +34,7 @@ struct FrustumsPass : public Hiss::IPass
     vk::CommandBuffer command_buffer = g_engine->device().create_commnad_buffer("frustum-pass");
 
 
-    void prepare()
+    void prepare(const Resource_& resource)
     {
         descriptor_set_layout = Hiss::Initial::descriptor_set_layout(
                 g_engine->vkdevice(), {
@@ -43,7 +49,14 @@ struct FrustumsPass : public Hiss::IPass
 
         // shader stage，并且传入一下编译时常量
         auto shader_stage = engine.shader_loader().load(shader_frustum, vk::ShaderStageFlagBits::eCompute);
-        shader_stage.pSpecializationInfo = &resource.specilazatin_info;
+        std::vector<vk::SpecializationMapEntry> entries           = ShaderConst::specialization_entries();
+        vk::SpecializationInfo                  specilazatin_info = {
+                                 .mapEntryCount = (uint32_t) entries.size(),
+                                 .pMapEntries   = entries.data(),
+                                 .dataSize      = sizeof(ShaderConst),
+                                 .pData         = &resource.shader_const,
+        };
+        shader_stage.pSpecializationInfo = &specilazatin_info;
 
         pipeline = Hiss::Initial::compute_pipeline(g_engine->vkdevice(), pipeline_layout, shader_stage);
 
@@ -52,8 +65,8 @@ struct FrustumsPass : public Hiss::IPass
         Hiss::Initial::descriptor_set_write(
                 g_engine->vkdevice(), descriptor_set,
                 {
-                        {.type = vk::DescriptorType::eStorageBuffer, .buffer = &resource.frustums_ssbo},
-                        {.type = vk::DescriptorType::eUniformBuffer, .buffer = &resource.scene_uniform},
+                        {.type = vk::DescriptorType::eStorageBuffer, .buffer = resource.frustum_ssbo.get()},
+                        {.type = vk::DescriptorType::eUniformBuffer, .buffer = resource.scene_uniform.get()},
                 });
 
 
@@ -70,8 +83,10 @@ struct FrustumsPass : public Hiss::IPass
             command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_set},
                                               {});
             // 每个 thread 负责一个 tile
-            const uint32_t group_count_x = (tile_num_x() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-            const uint32_t group_count_y = (tile_num_y() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+            const uint32_t group_count_x =
+                    (tile_num_x() + ForwardPlusShader::WORKGROUP_SIZE - 1) / ForwardPlusShader::WORKGROUP_SIZE;
+            const uint32_t group_count_y =
+                    (tile_num_y() + ForwardPlusShader::WORKGROUP_SIZE - 1) / ForwardPlusShader::WORKGROUP_SIZE;
             command_buffer.dispatch(group_count_x, group_count_y, 1);
         }
         command_buffer.end();

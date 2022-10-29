@@ -1,6 +1,6 @@
 #pragma once
 #include "core/vk_include.hpp"
-#include "func/texture.hpp"
+#include "engine/texture.hpp"
 
 
 namespace Hiss::Initial
@@ -144,6 +144,7 @@ struct DescriptorWrite
     Hiss::Buffer*      buffer{};
     Hiss::Image2D*     image{};
     vk::Sampler        sampler;
+    int                binding = -1;
 };
 
 
@@ -165,7 +166,7 @@ inline void descriptor_set_write(vk::Device device, vk::DescriptorSet descriptor
 
         vk::WriteDescriptorSet write_set = {
                 .dstSet          = descriptor_set,
-                .dstBinding      = i,
+                .dstBinding      = writes[i].binding == -1 ? i : writes[i].binding,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = type,

@@ -42,18 +42,18 @@ void MSAA::App::clean()
 void MSAA::App::prepare_pipeline()
 {
     // pipeline layout
-    pipeline_layout = engine.device().vkdevice().createPipelineLayout(vk::PipelineLayoutCreateInfo{
-            .setLayoutCount = 1,
-            .pSetLayouts    = &descriptor_layout,
-    });
+    pipeline_layout = Hiss::Initial::pipeline_layout(engine.vkdevice(), {
+                                                                                descriptor_layout,
+                                                                                engine.material_layout,
+                                                                        });
 
 
     // pipeline
     auto _pipeline_state = Hiss::PipelineTemplate{
             .shader_stages        = {engine.shader_loader().load(vert_shader_path, vk::ShaderStageFlagBits::eVertex),
                                      engine.shader_loader().load(frag_shader_path, vk::ShaderStageFlagBits::eFragment)},
-            .vertex_bindings      = Hiss::Vertex3DNormalUV::input_binding_description(0),
-            .vertex_attributes    = Hiss::Vertex3DNormalUV::input_attribute_description(0),
+            .vertex_bindings      = Hiss::Vertex3D::binding_description(0),
+            .vertex_attributes    = Hiss::Vertex3D::attribute_description(0),
             .color_attach_formats = {engine.color_format()},
             .depth_attach_format  = engine.depth_format(),
             .pipeline_layout      = pipeline_layout,
@@ -66,7 +66,6 @@ void MSAA::App::prepare_pipeline()
 
 void MSAA::App::update() noexcept
 {
-    engine.frame_manager().acquire_frame();
     auto& frame   = engine.current_frame();
     auto& payload = payloads[frame.frame_id()];
 
@@ -77,8 +76,6 @@ void MSAA::App::update() noexcept
 
     // 绘制
     engine.queue().submit_commands({}, {payload.command_buffer}, {frame.submit_semaphore()}, frame.insert_fence());
-
-    engine.frame_manager().submit_frame();
 }
 
 
@@ -99,9 +96,6 @@ void MSAA::App::prepare_descriptor_set()
                 engine.vkdevice(), payload.descriptor_set,
                 {
                         {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.uniform_buffer},    // 1
-                        {.type    = vk::DescriptorType::eCombinedImageSampler,
-                         .image   = &tex.image(),
-                         .sampler = tex.sampler()},    // 2
                 });
     }
 }
@@ -117,9 +111,6 @@ void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Pay
             command_buffer, {vk::PipelineStageFlagBits::eLateFragmentTests},
             {vk::PipelineStageFlagBits::eEarlyFragmentTests,
              vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead});
-    color_attach->execution_barrier(
-            command_buffer, {vk::PipelineStageFlagBits::eColorAttachmentOutput},
-            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite});
 
 
     // layout transfer
@@ -141,24 +132,24 @@ void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Pay
         command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 0,
                                           {payload.descriptor_set}, {});
 
-        // 绘制房子
-        command_buffer.bindVertexBuffers(0, {mesh.vertex_buffer().vkbuffer()}, {0});
-        command_buffer.bindIndexBuffer(mesh.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
-        command_buffer.drawIndexed(static_cast<uint32_t>(mesh.index_buffer().index_num), 1, 0, 0, 0);
+        mesh2.root_node->draw([this, command_buffer](const Hiss::MatMesh& mesh, const glm::mat4& matrix) {
+            // 绑定纹理
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 1,
+                                              {mesh.mat->descriptor_set}, {});
+
+
+            command_buffer.bindVertexBuffers(0, {mesh.mesh->vertex_buffer->vkbuffer()}, {0});
+            command_buffer.bindIndexBuffer(mesh.mesh->index_buffer->vkbuffer(), 0, vk::IndexType::eUint32);
+            command_buffer.drawIndexed((uint32_t) mesh.mesh->index_buffer->index_num, 1, 0, 0, 0);
+        });
 
         // 绘制立方体
-//        command_buffer.bindVertexBuffers(0, {mesh2_cube.vertex_buffer().vkbuffer()}, {0});
-//        command_buffer.bindIndexBuffer(mesh2_cube.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
-//        command_buffer.drawIndexed(static_cast<uint32_t>(mesh2_cube.index_buffer().index_num), 1, 0, 0, 0);
+        //        command_buffer.bindVertexBuffers(0, {mesh2_cube.vertex_buffer().vkbuffer()}, {0});
+        //        command_buffer.bindIndexBuffer(mesh2_cube.index_buffer().vkbuffer(), 0, vk::IndexType::eUint32);
+        //        command_buffer.drawIndexed(static_cast<uint32_t>(mesh2_cube.index_buffer().index_num), 1, 0, 0, 0);
     }
     command_buffer.endRendering();
 
-
-    // layout transfer
-    frame.image().transfer_layout(
-            command_buffer,
-            {vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::AccessFlagBits::eColorAttachmentWrite},
-            {vk::PipelineStageFlagBits::eBottomOfPipe}, vk::ImageLayout::ePresentSrcKHR);
 
     command_buffer.end();
 }

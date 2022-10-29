@@ -1,9 +1,9 @@
 #pragma once
 #include <iostream>
-#include "core/engine.hpp"
+#include "engine/engine.hpp"
 #include "proj_config.hpp"
 #include <spdlog/spdlog.h>
-#include "application.hpp"
+#include "utils/application.hpp"
 
 
 inline void init_log()

@@ -1,6 +1,6 @@
 #pragma once
 #include "image.hpp"
-#include "device.hpp"
+#include "core/device.hpp"
 
 
 namespace Hiss

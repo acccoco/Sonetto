@@ -20,9 +20,11 @@ Hiss::Swapchain::Swapchain(Device& device, Window& window, vk::SurfaceKHR surfac
     // 在 swapchain 的 vkImage 的基础上创建应用自己的 image 对象
     _images2.resize(images.size());
     for (int i = 0; i < images.size(); ++i)
+    {
         _images2[i] =
                 new Image2D(device, images[i], fmt::format("swapchain image {}", i), vk::ImageAspectFlagBits::eColor,
                             vk::ImageLayout::eUndefined, color_format(), present_extent._value);
+    }
 
     spdlog::info("[swapchain] image number: {}", _images2.size());
 }

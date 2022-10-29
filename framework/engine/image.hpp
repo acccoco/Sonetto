@@ -1,5 +1,5 @@
 #pragma once
-#include "func/buffer.hpp"
+#include "buffer.hpp"
 #include "core/device.hpp"
 
 

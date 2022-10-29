@@ -34,7 +34,7 @@ set(LIBS
 set(HEADER_FILES
         vk_config.hpp
         run.hpp
-        application.hpp
+        utils/application.hpp
 
         utils/tools.hpp
         utils/timer.hpp
@@ -43,44 +43,44 @@ set(HEADER_FILES
         utils/semaphore_pool.hpp
         utils/stbi.hpp
 
-        core/image.hpp
-        core/swapchain.hpp
+        engine/image.hpp
+        engine/swapchain.hpp
         core/vk_common.hpp
         core/instance.hpp
         core/window.hpp
         core/device.hpp
         core/gpu.hpp
-        core/engine.hpp
+        engine/engine.hpp
         core/command.hpp
-        core/frame.hpp
+        engine/frame.hpp
         core/queue.hpp
         core/vk_include.hpp
 
-        func/buffer.hpp
-        func/model.hpp
-        func/texture.hpp
-        func/vertex.hpp
-        func/pipeline_template.hpp
-        func/vertex_buffer.hpp
-        func/vk_func.hpp core/frame_manager.hpp)
+        engine/buffer.hpp
+        engine/model.hpp
+        engine/texture.hpp
+        engine/vertex.hpp
+        utils/pipeline_template.hpp
+        engine/vertex_buffer.hpp
+        utils/vk_func.hpp engine/frame_manager.hpp utils/light_pass.hpp engine/material.hpp engine/descriptor_layout.hpp)
 
 # source files
 set(SOURCE_FILES
         utils/fence_pool.cpp
 
-        core/image.cpp
+        engine/image.cpp
         core/instance.cpp
         core/window.cpp
         core/device.cpp
         core/gpu.cpp
-        core/swapchain.cpp
-        core/engine.cpp
+        engine/swapchain.cpp
+        engine/engine.cpp
         core/command.cpp
 
-        func/vertex.cpp
-        func/texture.cpp
-        func/pipeline_template.cpp
-        func/model.cpp
+        engine/vertex.cpp
+        engine/texture.cpp
+        utils/pipeline_template.cpp
+        engine/model.cpp
         run.cpp)
 
 

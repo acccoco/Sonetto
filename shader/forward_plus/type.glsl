@@ -1,9 +1,27 @@
 #ifdef HISS_CPP
+
+// 用于内存对齐
 #define ALIGN(n) alignas(n)
+
+// 用于定义 namespace
+#define NAMESPACE_BEGIN(name)                                                                                          \
+    namespace name                                                                                                     \
+    {
+#define NAMESPACE_END                                                                                                  \
+    }                                                                                                                  \
+    ;
 using namespace glm;
+
 #else
+
 #define ALIGN(n)
+#define NAMESPACE_BEGIN(name)
+#define NAMESPACE_END
+
 #endif
+
+
+NAMESPACE_BEGIN(ForwardPlusShader)
 
 
 const uint LOCAL_LIGHT_COUNT = 512u;    // tile 内最多可以存放多少 light
@@ -36,3 +54,5 @@ struct Frustum
     ALIGN(16) Plane bottom;
     vec4 _padding_;    // 似乎是 BUG，防止最后一个 float 被覆盖
 };
+
+NAMESPACE_END

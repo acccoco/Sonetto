@@ -8,6 +8,14 @@ namespace Hiss
 {
 
 
+struct FaceTriangle
+{
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+};
+
+
 class IndexBuffer2 : public Buffer
 {
 public:
@@ -25,6 +33,25 @@ public:
         // 创建 stage buffer，向其中写入数据
         StageBuffer stage_buffer(device, allocator, size(), fmt::format("{}-stage-buffer", name));
         stage_buffer.mem_copy(indices.data(), size());
+
+
+        // 立即向 indices 中写入
+        OneTimeCommand command_buffer{device, device.command_pool()};
+        command_buffer().copyBuffer(stage_buffer.vkbuffer(), vkbuffer(), {vk::BufferCopy{.size = size()}});
+        command_buffer.exec();
+    }
+
+
+    IndexBuffer2(Device& device, VmaAllocator allocator, const std::vector<FaceTriangle>& faces,
+                 const std::string& name = "")
+        : Buffer(device, allocator, sizeof(FaceTriangle) * faces.size(),
+                 vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
+                 VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, name),
+          index_num(faces.size() * 3)
+    {
+        // 创建 stage buffer，向其中写入数据
+        StageBuffer stage_buffer(device, allocator, size(), fmt::format("{}-stage-buffer", name));
+        stage_buffer.mem_copy(faces.data(), size());
 
 
         // 立即向 indices 中写入

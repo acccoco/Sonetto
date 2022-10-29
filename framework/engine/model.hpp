@@ -5,7 +5,7 @@
 #include "vertex.hpp"
 #include "tiny_obj_loader.h"
 #include <unordered_map>
-#include "core/engine.hpp"
+#include "engine.hpp"
 #include "vertex_buffer.hpp"
 
 
@@ -17,8 +17,8 @@ public:
     Mesh(Hiss::Engine& engine, const std::string& mesh_path, const std::string& name = "");
     ~Mesh();
 
-    Hiss::VertexBuffer2<Hiss::Vertex3DNormalUV>& vertex_buffer() { return *_vertex_buffer2; }
-    Hiss::IndexBuffer2&                          index_buffer() { return *_index_buffer2; }
+    Hiss::VertexBuffer2<Hiss::Vertex3DNormalUV>& vertex_buffer() const { return *_vertex_buffer2; }
+    Hiss::IndexBuffer2&                          index_buffer() const { return *_index_buffer2; }
 
     Prop<std::string, Mesh> mesh_path;
 

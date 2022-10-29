@@ -9,5 +9,5 @@ compile_shader(
 
 add_sample(
         TARGET_NAME ${FOLDER_NAME}
-        SOURCES "forward_plus.cpp" "light.hpp" "mat.hpp" "camera.hpp" "test_model.hpp" "frustums_pass.hpp" "forward_common.hpp" "depth_pass.hpp" "cull_pass.hpp" "final_pass.hpp"
+        SOURCES "forward_plus.cpp" "camera.hpp" "../../framework/engine/model2.hpp" "frustums_pass.hpp" "forward_common.hpp" "depth_pass.hpp" "cull_pass.hpp" "final_pass.hpp"
 )

@@ -31,10 +31,10 @@ public:
 
 
     Resource     resource;
-    DepthPass    depth_pass{engine, resource};
-    FrustumsPass frustum_pass{engine, resource};
-    CullPass     cull_pass{engine, resource};
-    FinalPass    final_pass{engine, resource};
+    DepthPass    depth_pass{engine};
+    FrustumsPass frustum_pass{engine};
+    CullPass     cull_pass{engine};
+    FinalPass    final_pass{engine};
 
 
 public:
@@ -52,53 +52,116 @@ public:
         }
 
 
-        // 各个 pass 初始化
-        frustum_pass.prepare();
-        depth_pass.prepare();
-        cull_pass.prepare();
-        final_pass.prepare();
+        // frustum pass 初始化
+        FrustumsPass::Resource_ frustum_resource{
+                .frustum_ssbo  = resource.frustums_ssbo,
+                .scene_uniform = resource.scene_uniform,
+                .shader_const  = resource.shader_const,
+        };
+        frustum_pass.prepare(frustum_resource);
 
 
-        init_test_command_buffer();
-    }
-
-
-    /**
-     * 测试用的
-     */
-    std::vector<vk::CommandBuffer> test_command_buffers{engine.frame_manager().frames_number()};
-
-    /**
-     * 测试用的，为了让 swapchain 运转起来
-     */
-    void init_test_command_buffer()
-    {
-        for (int i = 0; i < engine.frame_manager().frames_number(); ++i)
+        // depth pass 初始化
+        std::vector<DepthPass::Resource_> depth_resource{engine.frame_manager().frames_number()};
+        for (int i = 0; i < depth_resource.size(); ++i)
         {
-            test_command_buffers[i] = engine.device().create_commnad_buffer(fmt::format("test frame {}", i));
-
-            test_command_buffers[i].begin(vk::CommandBufferBeginInfo{});
-            Hiss::Engine::color_attach_layout_trans_1(test_command_buffers[i], engine.frame_manager().frame(i).image());
-            Hiss::Engine::color_attach_layout_trans_2(test_command_buffers[i], engine.frame_manager().frame(i).image());
-            test_command_buffers[i].end();
+            depth_resource[i].depth_attach  = resource.payloads[i].depth_attach;
+            depth_resource[i].frame_uniform = resource.payloads[i].perframe_uniform;
+            depth_resource[i].scene_uniform = resource.scene_uniform;
         }
+        depth_pass.prepare(depth_resource);
+
+
+        // light cull pass 初始化
+        std::vector<CullPass::Resource_> cull_resource;
+        for (auto& payload: resource.payloads)
+        {
+            cull_resource.push_back(CullPass::Resource_{
+                    .depth_attach     = payload.depth_attach,
+                    .light_grid_image = payload.light_grid_ssio,
+                    .scene_uniform    = resource.scene_uniform,
+                    .frustum_ssbo     = resource.frustums_ssbo,
+                    .light_ssbo       = resource.lights_ssbo,
+                    .light_index_ssbo = payload.light_index_ssbo,
+            });
+        }
+        cull_pass.prepare(cull_resource);
+
+
+        // final pass 初始化
+        std::vector<FinalPass::Resource_> final_resource;
+        for (auto& payload: resource.payloads)
+        {
+            final_resource.push_back(FinalPass::Resource_{
+                    .depth_attach     = payload.depth_attach,
+                    .scene_uniform    = resource.scene_uniform,
+                    .frame_uniform    = payload.perframe_uniform,
+                    .light_index_ssbo = payload.light_index_ssbo,
+                    .light_grid_image = payload.light_grid_ssio,
+                    .light_ssbo       = resource.lights_ssbo,
+                    .mat_uniform      = resource.material_uniform,
+            });
+        }
+        final_pass.prepare(final_resource);
     }
+
 
     void update() override
     {
-        engine.frame_manager().acquire_frame();
+        auto& payload = resource.payloads[engine.current_frame().frame_id()];
+        auto& frame   = engine.current_frame();
+
+        depth_pass.update(resource.cube_matrix, resource.mesh_cube);
 
 
-        // FIXME 临时的
-        //        engine.device().queue().submit_commands({}, {test_command_buffers[engine.current_frame().frame_id()]},
-        //                                                {engine.current_frame().submit_semaphore()}, engine.current_frame().insert_fence());
+        {
+            auto command_buffer = frame.acquire_command_buffer("depth layout trans");
+            command_buffer.begin(vk::CommandBufferBeginInfo{});
 
-        depth_pass.update();
+            // depth attachment, layout trans
+            // 等待前一个 depth pass 完成深度写入，并且进行 layout 转换
+            payload.depth_attach->memory_barrier(
+                    {vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+                     vk::AccessFlagBits::eDepthStencilAttachmentWrite},
+                    {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderRead},
+                    vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+                    command_buffer);
+            command_buffer.end();
+            engine.queue().submit_commands({}, {command_buffer}, {}, frame.insert_fence());
+        }
+
+
         cull_pass.update();
-        final_pass.update();
+
+        {
+            auto command_buffer = frame.acquire_command_buffer("pre final pass");
+            command_buffer.begin(vk::CommandBufferBeginInfo{});
 
 
-        engine.frame_manager().submit_frame();
+            // depth attache layout transfer：等待 light cull pass 完成深度的读取
+            payload.depth_attach->memory_barrier(
+                    {vk::PipelineStageFlagBits::eComputeShader},
+                    {vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
+                     vk::AccessFlagBits::eDepthStencilAttachmentRead},
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, command_buffer);
+
+            // 等待 light cull pass 写入 light index list
+            payload.light_index_ssbo->memory_barrier(
+                    command_buffer, {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
+                    {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead});
+
+
+            // 等待 light cull pass 写入 light index grid
+            payload.light_grid_ssio->memory_barrier(
+                    {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
+                    {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead},
+                    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral, command_buffer);
+
+            command_buffer.end();
+            engine.queue().submit_commands({}, {command_buffer}, {}, frame.insert_fence());
+        }
+
+        final_pass.update(resource.cube_matrix, resource.mesh_cube);
     }
 
     void clean() override
@@ -142,27 +205,29 @@ public:
 
 
         // 光源是均匀的
-        resource.lights.reserve(LIGHT_NUM);
-        float      light_interval = 2.f / LIGHT_DIM;
-        Hiss::Rand rand;
-
-        for (int i = 0; i < LIGHT_DIM; ++i)
         {
-            for (int j = 0; j < LIGHT_DIM; ++j)
+            resource.lights.reserve(LIGHT_NUM);
+            float      light_interval = 2.f / LIGHT_DIM;
+            Hiss::Rand rand;
+
+            for (int i = 0; i < LIGHT_DIM; ++i)
             {
-                for (int k = 0; k < LIGHT_DIM; ++k)
+                for (int j = 0; j < LIGHT_DIM; ++j)
                 {
-                    glm::vec3 pos = glm::vec3(-1.f) + glm::vec3(i, j, k) * light_interval;
+                    for (int k = 0; k < LIGHT_DIM; ++k)
+                    {
+                        glm::vec3 pos = glm::vec3(-1.f) + glm::vec3(i, j, k) * light_interval;
 
-                    Light light = {
-                            .pos_world = glm::vec4(pos * SCENE_RANGE, 1.f),
-                            .color     = glm::vec4(rand.uniform_0_1(), rand.uniform_0_1(), rand.uniform_0_1(), 1.f),
-                            .range     = 20.f,
-                            .intensity = 1.f,
-                            .type      = POINT_LIGHT,
-                    };
+                        Shader::Light light = {
+                                .pos_world = glm::vec4(pos * SCENE_RANGE, 1.f),
+                                .color     = glm::vec4(rand.uniform_0_1(), rand.uniform_0_1(), rand.uniform_0_1(), 1.f),
+                                .range     = 20.f,
+                                .intensity = 1.f,
+                                .type      = POINT_LIGHT,
+                        };
 
-                    resource.lights.push_back(light);
+                        resource.lights.push_back(light);
+                    }
                 }
             }
         }
@@ -195,19 +260,19 @@ public:
         for (auto& light: resource.lights)
             light.pos_view = view_matrix * light.pos_world;
 
-        resource.lights_stage_buffer.mem_copy(resource.lights.data(), sizeof(Light) * LIGHT_NUM);
+        resource.lights_stage_buffer.mem_copy(resource.lights.data(), sizeof(Shader::Light) * LIGHT_NUM);
 
 
         // 将数据写入 storage buffer 中，并添加 barrier
-        resource.lights_ssbo.memory_barrier(
+        resource.lights_ssbo->memory_barrier(
                 command_buffer,
                 {vk::PipelineStageFlagBits::eComputeShader | vk::PipelineStageFlagBits::eFragmentShader, {}},
                 {vk::PipelineStageFlagBits::eTransfer, vk::AccessFlagBits::eTransferWrite});
 
-        command_buffer.copyBuffer(resource.lights_stage_buffer.vkbuffer(), resource.lights_ssbo.vkbuffer(),
-                                  {vk::BufferCopy{.size = resource.lights_ssbo.size()}});
+        command_buffer.copyBuffer(resource.lights_stage_buffer.vkbuffer(), resource.lights_ssbo->vkbuffer(),
+                                  {vk::BufferCopy{.size = resource.lights_ssbo->size()}});
 
-        resource.lights_ssbo.memory_barrier(
+        resource.lights_ssbo->memory_barrier(
                 command_buffer, {vk::PipelineStageFlagBits::eTransfer, vk::AccessFlagBits::eTransferWrite},
                 {vk::PipelineStageFlagBits::eComputeShader | vk::PipelineStageFlagBits::eFragmentShader,
                  vk::AccessFlagBits::eShaderRead});
@@ -221,7 +286,7 @@ public:
     {
         for (auto& payload: resource.payloads)
         {
-            payload.perframe_uniform.mem_copy(&resource.frame_ubo, sizeof(resource.frame_ubo));
+            payload.perframe_uniform->mem_copy(&resource.frame_ubo, sizeof(resource.frame_ubo));
         }
     }
 
