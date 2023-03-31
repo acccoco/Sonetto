@@ -265,9 +265,9 @@ inline vk::Sampler sampler(const Hiss::Device& device)
             .mipmapMode = vk::SamplerMipmapMode::eLinear,
 
             // 纹理坐标超出 [0, 1) 后，如何处理
-            .addressModeU = vk::SamplerAddressMode::eMirroredRepeat,
-            .addressModeV = vk::SamplerAddressMode::eMirroredRepeat,
-            .addressModeW = vk::SamplerAddressMode::eMirroredRepeat,
+            .addressModeU = vk::SamplerAddressMode::eClampToEdge,
+            .addressModeV = vk::SamplerAddressMode::eClampToEdge,
+            .addressModeW = vk::SamplerAddressMode::eClampToEdge,
 
             .mipLodBias = 0.f,
 
@@ -286,5 +286,6 @@ inline vk::Sampler sampler(const Hiss::Device& device)
             .unnormalizedCoordinates = VK_FALSE,
     });
 }
+
 
 }    // namespace Hiss::Initial

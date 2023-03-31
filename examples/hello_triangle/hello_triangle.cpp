@@ -60,6 +60,8 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
     // 每一帧都有各自的 depth buffer，因此不用担心 data race
     //////////////////////////////////////////////////
 
+    Hiss::Engine::color_attach_layout_trans_1(command_buffer, frame.image());
+
 
     color_attach_info.imageView = frame.image().vkview();
     depth_attach_info.imageView = payload.depth_buffer->vkview();
@@ -78,6 +80,9 @@ void Hello::App::record_command(vk::CommandBuffer command_buffer, const FramePay
         command_buffer.drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     }
     command_buffer.endRendering();
+
+
+    Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
 
 
     command_buffer.end();

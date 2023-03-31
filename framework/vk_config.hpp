@@ -135,12 +135,12 @@ const vk::DebugUtilsMessengerCreateInfoEXT _debug_utils_messenger_info = {
 // ==============================================================
 // descriptor pool 相关的配置
 // ==============================================================
-const uint32_t                            descriptor_set_max_number = 16;
+const uint32_t                            descriptor_set_max_number = 1024;
 const std::vector<vk::DescriptorPoolSize> pool_size                 = {
-        {vk::DescriptorType::eUniformBuffer, 64},
-        {vk::DescriptorType::eStorageBuffer, 64},
-        {vk::DescriptorType::eCombinedImageSampler, 64},
-        {vk::DescriptorType::eStorageImage, 64},
+        {vk::DescriptorType::eUniformBuffer, 1024},
+        {vk::DescriptorType::eStorageBuffer, 1024},
+        {vk::DescriptorType::eCombinedImageSampler, 1024},
+        {vk::DescriptorType::eStorageImage, 1024},
 };
 
 }    // namespace Hiss

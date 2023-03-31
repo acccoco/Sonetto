@@ -61,6 +61,30 @@ public:
     void copy_buffer_to_image(vk::Buffer buffer);
 
 
+    /**
+     * 创建作为 depth attachment 的 image
+     * 初始 layout 为 eDepthStencilAttachmentOptimal
+     * 可 sampled
+     */
+    static std::shared_ptr<Hiss::Image2D>
+    create_depth_attach(VmaAllocator allocator, Device& device, vk::Format format, vk::Extent2D extent,
+                        const std::string&      name   = "depth attach",
+                        vk::SampleCountFlagBits sample = vk::SampleCountFlagBits::e1)
+    {
+        return std::make_shared<Image2D>(
+                allocator, device,
+                Image2DCreateInfo{
+                        .name    = name,
+                        .format  = format,
+                        .extent  = extent,
+                        .usage   = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
+                        .samples = sample,
+                        .aspect  = vk::ImageAspectFlagBits::eDepth,
+                        .init_layout = vk::ImageLayout::eDepthStencilAttachmentOptimal,
+                });
+    }
+
+
     // 各种内存屏障 ====================================================================================================
 public:
     /**

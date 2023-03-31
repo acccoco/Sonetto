@@ -11,8 +11,10 @@ void MSAA::App::prepare()
     payloads.resize(engine.frame_manager().frames_number());
     for (auto& payload: payloads)
     {
-        payload.uniform_buffer =
-                new Hiss::UniformBuffer(engine.device(), engine.allocator, sizeof(MSAA::UniformBlock), "");
+        payload.uniform_buffer = std::make_shared<Hiss::Buffer>(
+                engine.device(), engine.allocator, sizeof(MSAA::UniformBlock),
+                vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst,
+                VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, "uniform buffer");
         payload.command_buffer = engine.device().command_pool().command_buffer_create().front();
     }
 
@@ -31,21 +33,13 @@ void MSAA::App::clean()
     engine.vkdevice().destroy(pipeline);
     engine.vkdevice().destroy(pipeline_layout);
     engine.vkdevice().destroy(descriptor_layout);
-
-    for (auto& payload: payloads)
-    {
-        delete payload.uniform_buffer;
-    }
 }
 
 
 void MSAA::App::prepare_pipeline()
 {
     // pipeline layout
-    pipeline_layout = Hiss::Initial::pipeline_layout(engine.vkdevice(), {
-                                                                                descriptor_layout,
-                                                                                engine.material_layout,
-                                                                        });
+    pipeline_layout = Hiss::Initial::pipeline_layout(engine.vkdevice(), {descriptor_layout, material_layout->layout});
 
 
     // pipeline
@@ -71,7 +65,6 @@ void MSAA::App::update() noexcept
 
 
     /* record command */
-    update_uniform(*payload.uniform_buffer);
     record_command(payload.command_buffer, payload, frame);
 
     // 绘制
@@ -95,7 +88,7 @@ void MSAA::App::prepare_descriptor_set()
         Hiss::Initial::descriptor_set_write(
                 engine.vkdevice(), payload.descriptor_set,
                 {
-                        {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.uniform_buffer},    // 1
+                        {.type = vk::DescriptorType::eUniformBuffer, .buffer = payload.uniform_buffer.get()},    // 1
                 });
     }
 }
@@ -103,7 +96,16 @@ void MSAA::App::prepare_descriptor_set()
 
 void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Payload& payload, const Hiss::Frame& frame)
 {
+    float time = (float) engine.timer().now_ms() / 1000.f;
+    ubo.model  = glm::rotate(glm::mat4(1.f), time * glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+
     command_buffer.begin(vk::CommandBufferBeginInfo{});
+
+    command_buffer.updateBuffer(payload.uniform_buffer->vkbuffer(), 0, sizeof(ubo), &ubo);
+
+    payload.uniform_buffer->memory_barrier(command_buffer,
+                                           {vk::PipelineStageFlagBits::eTransfer, vk::AccessFlagBits::eTransferWrite},
+                                           {vk::PipelineStageFlagBits::eVertexShader, vk::AccessFlagBits::eShaderRead});
 
 
     // execution barrier
@@ -135,7 +137,7 @@ void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Pay
         mesh2.root_node->draw([this, command_buffer](const Hiss::MatMesh& mesh, const glm::mat4& matrix) {
             // 绑定纹理
             command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline_layout, 1,
-                                              {mesh.mat->descriptor_set}, {});
+                                              {mesh.mat->descriptor_set->vk_descriptor_set}, {});
 
 
             command_buffer.bindVertexBuffers(0, {mesh.mesh->vertex_buffer->vkbuffer()}, {0});
@@ -150,23 +152,8 @@ void MSAA::App::record_command(vk::CommandBuffer command_buffer, const MSAA::Pay
     }
     command_buffer.endRendering();
 
+    Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
+
 
     command_buffer.end();
-}
-
-
-void MSAA::App::update_uniform(Hiss::UniformBuffer& uniform_buffer)
-{
-    assert(!payloads.empty() && payloads[0].uniform_buffer);
-
-    float time = (float) engine.timer().now_ms() / 1000.f;
-
-    UniformBlock ubo = {
-            .model = glm::rotate(glm::mat4(1.f), time * glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f)),
-            .view  = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f)),
-            .proj = Hiss::perspective(45.f, (float) engine.extent().width / (float) engine.extent().height, 0.1f, 10.f),
-    };
-
-
-    uniform_buffer.mem_copy(&ubo, sizeof(ubo));
 }

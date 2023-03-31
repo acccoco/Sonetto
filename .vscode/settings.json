@@ -1,0 +1,17 @@
+{
+    "clangd.arguments": [
+        "--background-index",
+        "--compile-commands-dir=cmake-build-debug", //compile_command.json相对路径，cmake默认生成在build，自行配置
+        "-j=12",
+        "--all-scopes-completion",
+        "--completion-style=detailed",
+        "--header-insertion=iwyu",
+        "--pch-storage=memory",
+        "--cross-file-rename",
+        "--enable-config",
+        "--fallback-style=WebKit",
+        "--pretty",
+        "--clang-tidy",
+        "--query-driver=clang++",
+    ],
+}

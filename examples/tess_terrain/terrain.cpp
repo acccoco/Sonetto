@@ -286,6 +286,7 @@ public:
         // 内存屏障与布局转换
         Hiss::Engine::depth_attach_execution_barrier(command_buffer, *depth_buffer);
 
+        Hiss::Engine::color_attach_layout_trans_1(command_buffer, frame.image());
 
         // framebuffer 相关设置
         color_attach_info.imageView      = frame.image().vkview();
@@ -307,6 +308,7 @@ public:
         }
         command_buffer.endRendering();
 
+        Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
 
         command_buffer.end();
     }

@@ -10,6 +10,7 @@
 #include "core/vk_include.hpp"
 #include "engine/engine.hpp"
 #include "engine/vertex.hpp"
+#include "vertex_buffer.hpp"
 #include "engine/texture.hpp"
 #include "utils/vk_func.hpp"
 #include "material.hpp"

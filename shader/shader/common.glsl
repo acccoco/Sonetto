@@ -1,3 +1,6 @@
+#ifndef SHADER_COMMON
+#define SHADER_COMMON
+
 #extension GL_GOOGLE_include_directive : enable
 #include "common_type.glsl"
 
@@ -32,3 +35,30 @@ vec4 screen_to_view(vec4 frag_coord, vec2 screen_size, mat4 in_proj)
 
     return view_coord / view_coord.w;
 }
+
+
+/**
+ * 对 ACES 曲线的快速拟合
+ * https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+ */
+vec3 ACES_HDR2SDR(vec3 hdr)
+{
+    float a = 2.51f;
+    float b = 0.03f;
+    float c = 2.43f;
+    float d = 0.59f;
+    float e = 0.14f;
+    return clamp((hdr * (a * hdr + b)) / (hdr * (c * hdr + d) + e), 0.0, 1.0);
+}
+
+
+/**
+ * 计算颜色对应的亮度
+ */
+float get_brightness(vec3 color)
+{
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+
+#endif    // SHADER_COMMON

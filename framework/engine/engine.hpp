@@ -12,6 +12,15 @@
 #include "utils/vk_func.hpp"
 
 
+// TODO
+//  像 descriptor 这样，多分几个类。
+//  拆分 engine 这个资源；；最好将 material descriptor 放到公共资源那里去，很危险。
+//  整理一下 mesh model 这个类
+//  再整理一下 device 的类，拆分到 vulkan core 中
+//  light ，frame，scene都可以抽象出辅助函数
+//  沿着这个思路继续，看看还能够抽象什么东西
+
+
 namespace Hiss
 {
 class Engine
@@ -23,7 +32,6 @@ public:
     ~Engine() = default;
 
 
-#pragma region public 特殊接口
 public:
     void prepare();
     void resize();
@@ -37,10 +45,8 @@ public:
 
     bool should_resize() const { return _window->has_resized(); }
 
-#pragma endregion
 
 
-#pragma region private 工具方法
 
 public:
     // 创建符合 swapchain 大小的 image，需要应用自己管理内存
@@ -58,10 +64,8 @@ public:
 
     vk::DescriptorSet create_descriptor_set(vk::DescriptorSetLayout layout, const std::string& debug_name = "");
 
-#pragma endregion
 
 
-#pragma region private method 初始化
 private:
     void init_vma();
 
@@ -81,10 +85,8 @@ private:
                 });
     }
 
-#pragma endregion
 
 
-#pragma region public 属性
 public:
     Prop<std::string, Engine> name{};
     Prop<Timer, Engine>       timer{};
@@ -123,10 +125,8 @@ public:
     VmaAllocator                     allocator = {};
     Prop<vk::DescriptorPool, Engine> descriptor_pool{VK_NULL_HANDLE};
 
-#pragma endregion
 
 
-#pragma region private 成员字段
 private:
     Instance*     _instance        = nullptr;
     GPU*          _physical_device = nullptr;
@@ -138,6 +138,5 @@ private:
 
     vk::SurfaceKHR             _surface         = VK_NULL_HANDLE;
     vk::DebugUtilsMessengerEXT _debug_messenger = VK_NULL_HANDLE;
-#pragma endregion
 };
 }    // namespace Hiss

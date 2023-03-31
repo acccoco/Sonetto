@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "type.glsl"
 #include "../shader/common.glsl"
-#include "../shader/light.glsl"
+#include "../shader/material.glsl"
 
 
 // 当前 pass，用于调试的数据

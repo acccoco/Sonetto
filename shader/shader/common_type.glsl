@@ -1,27 +1,10 @@
 #ifndef SHADER_COMMON_TYPE
 #define SHADER_COMMON_TYPE
 
-#ifdef HISS_CPP
-
-// 用于内存对齐
-#define ALIGN(n) alignas(n)
-
-// 用于定义 namespace
-#define NAMESPACE_BEGIN(name)                                                                                          \
-    namespace name                                                                                                     \
-    {
-#define NAMESPACE_END                                                                                                  \
-    }                                                                                                                  \
-    ;
-using namespace glm;
-
-#else
-
-#define ALIGN(n)
-#define NAMESPACE_BEGIN(name)
-#define NAMESPACE_END
-
-#endif
+#ifndef HISS_CPP
+#extension GL_GOOGLE_include_directive : enable
+#endif    // HISS_CPP
+#include "./_macro_.glsl"
 
 
 NAMESPACE_BEGIN(Shader)
@@ -61,10 +44,12 @@ struct VertFrag
     ALIGN(16) vec3 pos_view;
     ALIGN(16) vec3 normal_world;
     ALIGN(16) vec3 normal_view;
+    ALIGN(16) vec3 tangent;
+    ALIGN(16) vec3 btangent;
     ALIGN(16) vec3 color;    // 顶点颜色
     ALIGN(8) vec2 uv;
 };
 
-NAMESPACE_END
+NAMESPACE_END    // Shader
 
-#endif
+#endif    // SHADER_COMMON_TYPE

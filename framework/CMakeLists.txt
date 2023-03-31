@@ -62,7 +62,8 @@ set(HEADER_FILES
         engine/vertex.hpp
         utils/pipeline_template.hpp
         engine/vertex_buffer.hpp
-        utils/vk_func.hpp engine/frame_manager.hpp utils/light_pass.hpp engine/material.hpp engine/descriptor_layout.hpp)
+        utils/template.hpp
+        utils/vk_func.hpp engine/frame_manager.hpp utils/light_pass.hpp engine/material.hpp utils/post_process.hpp utils/descriptor.hpp core/vkcore.hpp)
 
 # source files
 set(SOURCE_FILES
@@ -81,7 +82,7 @@ set(SOURCE_FILES
         engine/texture.cpp
         utils/pipeline_template.cpp
         engine/model.cpp
-        run.cpp)
+        run.cpp core/vkcore.cpp)
 
 
 # static library

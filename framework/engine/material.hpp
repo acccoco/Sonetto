@@ -11,11 +11,12 @@
 #include "engine/engine.hpp"
 #include "engine/vertex.hpp"
 #include "engine/texture.hpp"
-#include "engine/descriptor_layout.hpp"
 #include "utils/vk_func.hpp"
+#include "utils/descriptor.hpp"
 #include "material.hpp"
 
 #define HISS_CPP
+#include "shader/material_type.glsl"
 #include "shader/light_type.glsl"
 
 namespace Hiss
@@ -48,6 +49,7 @@ struct Matt
                 .emissive_color       = color_emissive,
                 .diffuse_color        = color_diffuse,
                 .specular_color       = color_specular,
+                .specular_power       = 64.f,
                 .has_ambient_texture  = tex_emissive ? 1u : 0u,
                 .has_emissive_texture = tex_emissive ? 1u : 0u,
                 .has_diffuse_texture  = tex_diffuse ? 1u : 0u,
@@ -55,8 +57,33 @@ struct Matt
         };
     }
 
-    vk::DescriptorSet                    descriptor_set;
+    std::shared_ptr<DescriptorSet>       descriptor_set;
     std::unique_ptr<Hiss::UniformBuffer> material_uniform;
+
+
+    /**
+     * 使用 weak_ptr 不会占用引用计数，又可以分享 ptr，确保在 device 销毁之前被回收
+     */
+    inline static std::weak_ptr<Hiss::DescriptorLayout> material_descriptor;
+
+    static std::shared_ptr<Hiss::DescriptorLayout> get_material_descriptor(Hiss::Device& device)
+    {
+        auto ptr = material_descriptor.lock();
+        if (!ptr)
+        {
+            ptr = std::make_shared<Hiss::DescriptorLayout>(
+                    device, std::vector<Hiss::Initial::BindingInfo>{
+                                    {vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eFragment},
+                                    {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                                    {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                                    {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                                    {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},
+                            });
+            material_descriptor = ptr;
+        }
+
+        return ptr;
+    }
 
 
     /**
@@ -72,24 +99,22 @@ struct Matt
                                                       "material uniform buffer", &shader_material);
 
 
-        descriptor_set = engine.create_descriptor_set(engine.material_layout, "material descriptor set");
+        descriptor_set = std::make_shared<DescriptorSet>(engine, get_material_descriptor(engine.device()),
+                                                         "material descriptor set");
 
+        descriptor_set->write({.buffer = material_uniform.get()}, 0);
 
-        std::vector<Hiss::Initial::DescriptorWrite> writes = {
-                {.type = vk::DescriptorType::eUniformBuffer, .buffer = material_uniform.get()},
-        };
-
-        auto func = [&engine, &writes](std::unique_ptr<Texture>& tex, int binding) {
-            writes.push_back(Hiss::Initial::DescriptorWrite{
-                    .type    = vk::DescriptorType::eCombinedImageSampler,
-                    .image   = &engine.default_texture->image(),
-                    .sampler = engine.default_texture->sampler(),
-                    .binding = binding,
-            });
+        // 如果有材质，就填充材质；否则填充默认材质
+        auto func = [&engine, this](std::unique_ptr<Texture>& tex, int binding) {
             if (tex)
             {
-                writes.back().image   = &tex->image();
-                writes.back().sampler = tex->sampler();
+                descriptor_set->write({.image = &tex->image(), .sampler = tex->sampler()}, binding);
+            }
+            else
+            {
+                descriptor_set->write(
+                        {.image = &engine.default_texture->image(), .sampler = engine.default_texture->sampler()},
+                        binding);
             }
         };
 
@@ -97,9 +122,6 @@ struct Matt
         func(tex_emissive, 2);
         func(tex_diffuse, 3);
         func(tex_specular, 4);
-
-
-        Hiss::Initial::descriptor_set_write(engine.vkdevice(), descriptor_set, writes);
     }
 };
 

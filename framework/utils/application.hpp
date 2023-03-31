@@ -13,10 +13,10 @@ public:
 
     virtual ~IApplication() = default;
 
-    virtual void prepare() = 0;
+    virtual void prepare(){};
     virtual void resize(){};
-    virtual void update() = 0;
-    virtual void clean()  = 0;
+    virtual void update(){};
+    virtual void clean(){};
 
 
 public:
@@ -32,6 +32,8 @@ struct IPass
     explicit IPass(Hiss::Engine& engine)
         : engine(engine)
     {}
+
+    virtual ~IPass() = default;
 
 
     Engine& engine;

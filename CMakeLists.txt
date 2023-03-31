@@ -7,6 +7,10 @@ project(Hiss)   # Hiss for 🥵
 set (CMAKE_GENERATOR "Unix Makefiles" CACHE INTERNAL "" FORCE)
 
 
+# 导入编译数据库，用于项目分析
+set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+
 # compile options
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")

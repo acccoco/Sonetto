@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include <vector>
 #include "vk_config.hpp"
 #include "core/vk_common.hpp"
@@ -26,6 +27,34 @@ class Frame
 {
 public:
     friend FrameManager;
+
+
+    /**
+     * 仅在当前 frame 有效的 command buffer，在下一个周期到来时会被销毁掉
+     */
+    struct FrameCommandBuffer
+    {
+        explicit FrameCommandBuffer(Frame& frame, const std::string& name = "",
+                                    std::vector<vk::Semaphore> signal_semaphores = {})
+            : signal_semaphores(std::move(signal_semaphores)),
+              frame(frame)
+        {
+            command_buffer = frame.acquire_command_buffer(name);
+            command_buffer.begin(vk::CommandBufferBeginInfo{});
+        }
+
+        ~FrameCommandBuffer()
+        {
+            command_buffer.end();
+            frame._device.queue().submit_commands({}, {command_buffer}, signal_semaphores, frame.insert_fence());
+        }
+
+        inline vk::CommandBuffer& operator()() { return command_buffer; }
+
+        vk::CommandBuffer          command_buffer;
+        std::vector<vk::Semaphore> signal_semaphores;
+        Frame&                     frame;
+    };
 
     Frame(Device& device, uint32_t frame_index, Hiss::Image2D& image)
         : frame_id(frame_index),
@@ -86,6 +115,16 @@ public:
             _device.vkdevice().freeCommandBuffers(_device.command_pool().vkpool(), _command_buffers);
             _command_buffers.clear();
         }
+    }
+
+
+    /**
+     * 向默认队列提交命令
+     * 不需要等待 semaphore，不需要通知 semaphore，自动插入 fence
+     */
+    void submit_command(const vk::CommandBuffer& command_buffer)
+    {
+        _device.queue().submit_commands({}, {command_buffer}, {}, insert_fence());
     }
 
 

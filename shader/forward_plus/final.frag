@@ -2,7 +2,7 @@
 #extension GL_GOOGLE_include_directive : enable
 #include "../shader/common.glsl"
 #include "type.glsl"
-#include "../shader/light.glsl"
+#include "../shader/material.glsl"
 
 layout(location = 0) in VertFrag vs;
 layout(location = 0) out vec4 out_color;
@@ -67,7 +67,6 @@ void main()
     vec3 diffuse = mat.diffuse_color.rgb * lit.diffuse;
     // vec3 specular = mat.specular_color.rgb * lit.specular;
 
-    vec3 color = diffuse;
-    color      = clamp(color / 2.f, 0.f, 1.f);
-    out_color  = vec4(color, 1.0);
+    vec3 color = diffuse / 2.f;
+    out_color  = vec4(ACES_HDR2SDR(color), 1.0);
 }

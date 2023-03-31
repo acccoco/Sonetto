@@ -1,27 +1,11 @@
 #ifndef SHADER_LIGHT_TYPE
 #define SHADER_LIGHT_TYPE
 
-#ifdef HISS_CPP
 
-// 用于内存对齐
-#define ALIGN(n) alignas(n)
-
-// 用于定义 namespace
-#define NAMESPACE_BEGIN(name)                                                                                          \
-    namespace name                                                                                                     \
-    {
-#define NAMESPACE_END                                                                                                  \
-    }                                                                                                                  \
-    ;
-using namespace glm;
-
-#else
-
-#define ALIGN(n)
-#define NAMESPACE_BEGIN(name)
-#define NAMESPACE_END
-
-#endif
+#ifndef HISS_CPP
+#extension GL_GOOGLE_include_directive : enable
+#endif    // HISS_CPP
+#include "./_macro_.glsl"
 
 
 NAMESPACE_BEGIN(Shader)
@@ -57,35 +41,8 @@ struct LightingResult
     ALIGN(16) vec3 specular;
 };
 
-// 材质的定义
-struct Material    // total size = 112
-{
-    ALIGN(16) vec4 global_ambient;    // 全局的环境光
 
-    // offset = 16
+NAMESPACE_END    // Shader
 
-    ALIGN(16) vec4 ambient_color;
-    ALIGN(16) vec4 emissive_color;
-    ALIGN(16) vec4 diffuse_color;
-    ALIGN(16) vec4 specular_color;
 
-    // offset = 80
-
-    ALIGN(4) float opacity;           // 不透明度
-    ALIGN(4) float specular_power;    // 就是 phong 模型中的，可以表示表面的光滑程度
-
-    // offset = 88
-
-    ALIGN(4) uint has_ambient_texture;
-    ALIGN(4) uint has_emissive_texture;
-    ALIGN(4) uint has_diffuse_texture;
-    ALIGN(4) uint has_specular_texture;
-
-    // offset = 104
-
-    ALIGN(8) vec2 _padding_;
-};
-
-NAMESPACE_END
-
-#endif
+#endif    // SHADER_LIGHT_TYPE

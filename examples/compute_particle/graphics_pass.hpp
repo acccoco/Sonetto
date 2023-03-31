@@ -308,6 +308,8 @@ private:
                 {vk::PipelineStageFlagBits::eEarlyFragmentTests,
                  vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite});
 
+        engine.color_attach_layout_trans_1(command_buffer, frame.image());
+
 
         // pipeline barrier: storage buffer
         assert(storage_buffer);
@@ -356,6 +358,9 @@ private:
         command_buffer.bindVertexBuffers(0, {storage_buffer->vkbuffer()}, {0});
         command_buffer.draw(num_particles, 1, 0, 0);
         command_buffer.endRendering();
+
+
+        Hiss::Engine::color_attach_layout_trans_2(command_buffer, frame.image());
 
 
         command_buffer.end();

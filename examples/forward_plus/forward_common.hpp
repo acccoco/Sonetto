@@ -13,6 +13,7 @@
 #include "forward_plus/type.glsl"
 #include "shader/common_type.glsl"
 #include "shader/light_type.glsl"
+#include "shader/material_type.glsl"
 
 
 extern Hiss::Engine* g_engine;

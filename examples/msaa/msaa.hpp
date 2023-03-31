@@ -25,10 +25,10 @@ struct UniformBlock
 
 struct Payload
 {
-    Hiss::UniformBuffer* uniform_buffer{};
-    vk::DescriptorSet    descriptor_set;
-    UniformBlock         ubo{};
-    vk::CommandBuffer    command_buffer;
+    std::shared_ptr<Hiss::Buffer> uniform_buffer;
+    vk::DescriptorSet             descriptor_set;
+    UniformBlock                  ubo{};
+    vk::CommandBuffer             command_buffer;
 };
 
 
@@ -51,6 +51,12 @@ public:
     Hiss::MeshLoader mesh2{engine, model / "viking_room" / "viking_room.obj"};
 
 
+    UniformBlock ubo = {
+            .view = glm::lookAt(glm::vec3(2.f, 2.f, 2.f), glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f)),
+            .proj = Hiss::perspective(45.f, (float) engine.extent().width / (float) engine.extent().height, 0.1f, 10.f),
+    };
+
+
 private:
     void prepare() override;
     void update() noexcept override;
@@ -65,7 +71,6 @@ private:
     void prepare_descriptor_set();
 
     void record_command(vk::CommandBuffer command_buffer, const MSAA::Payload& payload, const Hiss::Frame& frame);
-    void update_uniform(Hiss::UniformBuffer& uniform_buffer);
 
 
     // members =======================================================
@@ -85,7 +90,6 @@ public:
     // Hiss::Mesh mesh2_cube = Hiss::Mesh(engine, model / "cube/cube.obj");
 
 
-#pragma region pipeline 相关
 
     vk::Pipeline       pipeline;
     vk::PipelineLayout pipeline_layout;
@@ -97,10 +101,8 @@ public:
                     {vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment},    // 1
             });
 
-#pragma endregion
+    std::shared_ptr<Hiss::DescriptorLayout> material_layout = Hiss::Matt::get_material_descriptor(engine.device());
 
-
-#pragma region framebuffer 相关信息
 
     Hiss::Image2D* color_attach = engine.create_color_attach(msaa_sample);
     Hiss::Image2D* depth_attach = engine.create_depth_attach(msaa_sample);
@@ -109,7 +111,5 @@ public:
     vk::RenderingAttachmentInfo depth_attach_info = Hiss::Initial::depth_attach_info(depth_attach->vkview());
 
     vk::RenderingInfo render_info = Hiss::Initial::render_info(color_attach_info, depth_attach_info, engine.extent());
-
-#pragma endregion
 };
 }    // namespace MSAA

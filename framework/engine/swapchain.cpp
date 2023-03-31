@@ -47,8 +47,11 @@ vk::SurfaceFormatKHR Hiss::Swapchain::_choose_present_format()
 
     // 优选 srgb
     for (const auto& format: format_list)
+    {
+        spdlog::info("supported color format: ({}, {})", to_string(format.format), to_string(format.colorSpace));
         if (format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
             return format;
+    }
     return format_list.front();
 }
 

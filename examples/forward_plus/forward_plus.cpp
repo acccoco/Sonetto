@@ -115,8 +115,7 @@ public:
 
 
         {
-            auto command_buffer = frame.acquire_command_buffer("depth layout trans");
-            command_buffer.begin(vk::CommandBufferBeginInfo{});
+            auto command_buffer = Hiss::Frame::FrameCommandBuffer(frame, "depth layout trans");
 
             // depth attachment, layout trans
             // 等待前一个 depth pass 完成深度写入，并且进行 layout 转换
@@ -125,29 +124,27 @@ public:
                      vk::AccessFlagBits::eDepthStencilAttachmentWrite},
                     {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderRead},
                     vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-                    command_buffer);
-            command_buffer.end();
-            engine.queue().submit_commands({}, {command_buffer}, {}, frame.insert_fence());
+                    command_buffer());
         }
 
 
         cull_pass.update();
 
         {
-            auto command_buffer = frame.acquire_command_buffer("pre final pass");
-            command_buffer.begin(vk::CommandBufferBeginInfo{});
-
+            auto command_buffer = Hiss::Frame::FrameCommandBuffer(frame, "pre final pass");
 
             // depth attache layout transfer：等待 light cull pass 完成深度的读取
             payload.depth_attach->memory_barrier(
                     {vk::PipelineStageFlagBits::eComputeShader},
                     {vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests,
                      vk::AccessFlagBits::eDepthStencilAttachmentRead},
-                    vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, command_buffer);
+                    vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, command_buffer());
+
+            Hiss::Engine::color_attach_layout_trans_1(command_buffer(), frame.image());
 
             // 等待 light cull pass 写入 light index list
             payload.light_index_ssbo->memory_barrier(
-                    command_buffer, {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
+                    command_buffer(), {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
                     {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead});
 
 
@@ -155,13 +152,16 @@ public:
             payload.light_grid_ssio->memory_barrier(
                     {vk::PipelineStageFlagBits::eComputeShader, vk::AccessFlagBits::eShaderWrite},
                     {vk::PipelineStageFlagBits::eFragmentShader, vk::AccessFlagBits::eShaderRead},
-                    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral, command_buffer);
-
-            command_buffer.end();
-            engine.queue().submit_commands({}, {command_buffer}, {}, frame.insert_fence());
+                    vk::ImageLayout::eGeneral, vk::ImageLayout::eGeneral, command_buffer());
         }
 
         final_pass.update(resource.cube_matrix, resource.mesh_cube);
+
+        {
+            auto command_buffer = Hiss::Frame::FrameCommandBuffer(frame, "post final pass");
+
+            Hiss::Engine::color_attach_layout_trans_2(command_buffer(), frame.image());
+        }
     }
 
     void clean() override
@@ -221,7 +221,7 @@ public:
                         Shader::Light light = {
                                 .pos_world = glm::vec4(pos * SCENE_RANGE, 1.f),
                                 .color     = glm::vec4(rand.uniform_0_1(), rand.uniform_0_1(), rand.uniform_0_1(), 1.f),
-                                .range     = 20.f,
+                                .range     = 15.f,
                                 .intensity = 1.f,
                                 .type      = POINT_LIGHT,
                         };

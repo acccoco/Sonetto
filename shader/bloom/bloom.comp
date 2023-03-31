@@ -1,0 +1,93 @@
+#version 450
+#extension GL_GOOGLE_include_directive : enable
+#include "../shader/common.glsl"
+#include "../shader/light.glsl"
+
+const int   GAUSS_RADIUS            = 4;
+const float GAUSS[GAUSS_RADIUS + 1] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+
+layout(set = 0, binding = 0, std140) uniform _u_0_
+{
+    Scene scene;    // 渲染的全局信息
+};
+
+
+/**
+ * 用于采样的两个 texture，格式为 sFloat
+ */
+layout(set = 0, binding = 1) uniform sampler2D input_texture;    // 尺寸等于窗口大小，用于采样
+
+
+/*
+ * 尺寸等于窗口大小，用于输出，格式为 sRGB
+ * 注：这里的图片格式：驱动会将 image 实际存储值转换为这里指定的类型的，因此无需预先知道图片的 format
+ */
+layout(set = 0, binding = 2, rgba16f) uniform image2D bloom_image;
+
+
+shared vec3  source[16][16];        // 存放采样的数据
+shared vec3  first_gauss[8][16];    // 16 行 32 列的矩阵
+shared ivec2 image_size;            // framebuffer 的大小
+shared vec2  uv_offset;
+
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+
+void main()
+{
+    if (gl_LocalInvocationIndex == 0)
+    {
+        uv_offset  = 1.0 / image_size;
+        image_size = imageSize(bloom_image);
+    }
+    barrier();
+
+
+    /**
+     * 从纹理中采样，结果放入 shared memory 中。每个 thread 采样 4 次
+     */
+    vec2 sample_uv_origin = (gl_GlobalInvocationID.xy + 0.5 - GAUSS_RADIUS) / image_size;
+    for (uint i = 0u; i < 2u; ++i)
+    {
+        for (uint j = 0u; j < 2u; ++j)
+        {
+            uvec2 arr_index = gl_LocalInvocationID.xy * 2 + uvec2(i, j);
+            vec2  sample_uv = sample_uv_origin + arr_index * uv_offset;
+
+            vec3 frag_color                  = texture(input_texture, sample_uv).xyz;
+            source[arr_index.y][arr_index.x] = (get_brightness(frag_color) > 1.0) ? frag_color : vec3(0);
+        }
+    }
+    barrier();
+
+    /**
+     * 进行第一次高斯
+     */
+    for (int i = 0; i < 2; ++i)    // 每个 thread 负责 first 数组中的两个元素
+    {
+        ivec2 first_idx = ivec2(gl_LocalInvocationID.x * 2 + i, gl_LocalInvocationID.y);
+
+        first_gauss[first_idx.y][first_idx.x] = GAUSS[0] * source[first_idx.y + GAUSS_RADIUS][first_idx.x];
+        for (int j = 1; j <= GAUSS_RADIUS; ++j)    // 每个 first 中的元素从 source 中 Gauss 得到
+        {
+            first_gauss[first_idx.y][first_idx.x] += GAUSS[j] * source[first_idx.y + GAUSS_RADIUS + j][first_idx.x];
+            first_gauss[first_idx.y][first_idx.x] += GAUSS[j] * source[first_idx.y + GAUSS_RADIUS - j][first_idx.x];
+        }
+    }
+    barrier();
+
+
+    /**
+     * 进行第二次高斯
+     */
+    vec3 bloom_color = first_gauss[gl_LocalInvocationID.y][gl_LocalInvocationID.x + GAUSS_RADIUS] * GAUSS[0];
+    for (int i = 1; i <= GAUSS_RADIUS; ++i)
+    {
+        bloom_color += GAUSS[i] * first_gauss[gl_LocalInvocationID.y][gl_LocalInvocationID.x + GAUSS_RADIUS - i];
+        bloom_color += GAUSS[i] * first_gauss[gl_LocalInvocationID.y][gl_LocalInvocationID.x + GAUSS_RADIUS + i];
+    }
+    imageStore(bloom_image, ivec2(gl_GlobalInvocationID.xy), vec4(bloom_color, 1.0));
+    vec3 frag_color = source[gl_LocalInvocationID.y + GAUSS_RADIUS][gl_LocalInvocationID.x + GAUSS_RADIUS];
+}

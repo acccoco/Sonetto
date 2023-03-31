@@ -1,3 +1,6 @@
+#ifndef SHADER_COMPUTE
+#define SHADER_COMPUTE
+
 
 /**
  * 当前 workgroup 在所有 workgroup 中的 id，先行后列
@@ -9,3 +12,6 @@ uint group_index()
     id += gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y;
     return id;
 }
+
+
+#endif
